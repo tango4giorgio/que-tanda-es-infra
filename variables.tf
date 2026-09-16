@@ -3,14 +3,38 @@ variable "aws_region" {
   default = "eu-west-2"
 }
 
-variable "lambda_package_path" {
-  type    = string
-  default = "../backend/dist/get_catalogue.zip"
+variable "gateway_target_function_names" {
+  type        = list(string)
+  default     = ["tango-music-game-get-round", "tango-music-game-submit-feedback"]
+  description = "Target Lambda function names the gateway's IAM role is permitted to invoke; must stay in sync with backend/src/gateway_config/routes.json."
 }
 
-variable "database_url_secret_name" {
-  type    = string
-  default = "tango-music-game/catalogue/database-url"
+variable "database_url_parameter_name" {
+  type        = string
+  default     = "/tango-music-game/catalogue/database-url"
+  description = "SSM Parameter Store name (SecureString, free Standard tier) for the database URL."
+}
+
+variable "lambda_reserved_concurrency" {
+  type        = number
+  default     = 5
+  description = "Maximum concurrent registry Lambda executions to protect Supabase connections."
+
+  validation {
+    condition     = var.lambda_reserved_concurrency >= 1 && var.lambda_reserved_concurrency <= 20
+    error_message = "Lambda reserved concurrency must be between 1 and 20."
+  }
+}
+
+variable "log_retention_days" {
+  type        = number
+  default     = 30
+  description = "CloudWatch log retention period."
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365], var.log_retention_days)
+    error_message = "Choose a supported CloudWatch Logs retention period."
+  }
 }
 
 variable "supabase_access_token" {
@@ -48,7 +72,10 @@ variable "supabase_region" {
 }
 
 variable "supabase_instance_size" {
-  type        = string
-  default     = "micro"
+  type = string
+  # "nano" is the free-tier compute class ($0/mo). "micro" and larger are paid
+  # compute add-ons that require a Pro-plan organisation; do not change this
+  # default without confirming the cost tradeoff.
+  default     = "nano"
   description = "Supabase compute instance size."
 }

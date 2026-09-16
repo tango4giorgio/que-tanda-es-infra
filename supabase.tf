@@ -27,9 +27,10 @@ resource "supabase_settings" "catalogue" {
 }
 
 locals {
-  supabase_database_url = format(
-    "postgresql://postgres:%s@db.%s.supabase.co:5432/postgres?sslmode=require",
+  supabase_pooler_database_url = format(
+    "postgresql://%s:%s@aws-0-%s.pooler.supabase.com:6543/postgres?sslmode=require",
+    urlencode("postgres.${supabase_project.catalogue.id}"),
     urlencode(var.supabase_database_password),
-    supabase_project.catalogue.id,
+    var.supabase_region,
   )
 }

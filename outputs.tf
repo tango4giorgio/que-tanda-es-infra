@@ -1,9 +1,17 @@
-output "catalogue_api_url" {
+output "round_api_url" {
   value = aws_apigatewayv2_stage.default.invoke_url
 }
 
-output "get_catalogue_lambda_arn" {
-  value = aws_lambda_function.get_catalogue.arn
+output "get_round_lambda_arn" {
+  value = aws_lambda_function.get_round.arn
+}
+
+output "gateway_endpoint" {
+  value = aws_apigatewayv2_stage.gateway_default.invoke_url
+}
+
+output "gateway_lambda_arn" {
+  value = aws_lambda_function.gateway.arn
 }
 
 output "supabase_project_ref" {
@@ -15,10 +23,14 @@ output "supabase_project_url" {
 }
 
 output "supabase_database_host" {
-  value = "db.${supabase_project.catalogue.id}.supabase.co"
+  value = "aws-0-${var.supabase_region}.pooler.supabase.com"
+}
+
+output "supabase_database_port" {
+  value = 6543
 }
 
 output "supabase_database_url" {
-  value     = local.supabase_database_url
+  value     = local.supabase_pooler_database_url
   sensitive = true
 }
