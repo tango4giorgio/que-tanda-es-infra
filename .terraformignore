@@ -1,11 +1,12 @@
+.git/
+.github/
 .terraform/
+.lambda-packages/
 *.tfstate
 *.tfstate.*
 *.tfvars
 *.tfvars.json
 *.log
-.terraform.lock.hcl
-.lambda-packages/
 .DS_Store
 Thumbs.db
 *.tmp
