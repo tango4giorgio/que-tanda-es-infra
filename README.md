@@ -124,10 +124,21 @@ validated range of 1–20 unless the Supabase connection budget is deliberately 
 Terraform state contains the Supabase database password and generated connection URL even
 though CLI output marks them sensitive. For any shared environment:
 
-- use encrypted remote state with locking;
+- use the encrypted S3 backend and DynamoDB locking created by the bootstrap module;
 - grant state access only to infrastructure maintainers and deployment identities;
 - never commit state, plans, variable files, or copied secret output;
 - keep `prevent_destroy` on the Supabase project.
+
+For local commands, initialise the same remote backend used by GitHub Actions:
+
+```sh
+terraform init \
+  -backend-config="bucket=<state-bucket>" \
+  -backend-config="key=backend-infra/terraform.tfstate" \
+  -backend-config="region=eu-west-2" \
+  -backend-config="dynamodb_table=<lock-table>" \
+  -backend-config="encrypt=true"
+```
 
 ## Existing Supabase project
 
@@ -185,6 +196,27 @@ terraform validate
 terraform plan
 terraform apply
 ```
+
+## GitHub Actions deployment
+
+The `Deploy infrastructure` workflow performs a manual production deployment using a backend
+release tag supplied when the workflow is started. It authenticates to AWS using GitHub OIDC,
+uses the shared S3 state backend with DynamoDB locking, checks formatting, validates the
+configuration, creates a saved plan, and applies that exact plan.
+
+Create a GitHub environment named `production`, add any required reviewers, and configure:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| Environment variable | `AWS_ROLE_ARN` | `github_actions_role_arn` from the bootstrap outputs |
+| Environment variable | `TF_STATE_BUCKET` | `terraform_state_bucket_name` from the bootstrap outputs |
+| Environment variable | `TF_LOCK_TABLE` | `terraform_lock_table_name` from the bootstrap outputs |
+| Environment variable | `SUPABASE_ORGANIZATION_ID` | Supabase organisation slug |
+| Environment secret | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token |
+| Environment secret | `SUPABASE_DATABASE_PASSWORD` | Supabase database password |
+
+Run the bootstrap module once before the first deployment, then open **Actions**, choose
+**Deploy infrastructure**, select **Run workflow**, and enter a published backend release tag.
 
 After the Supabase project is ready, apply the migrations and load provider links from the
 parent directory:

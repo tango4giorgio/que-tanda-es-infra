@@ -15,3 +15,26 @@ variable "deployer_user_name" {
   default     = "tango-music-game-deployer"
   description = "IAM user name created for running the main backend-infra Terraform configuration."
 }
+
+variable "github_repository" {
+  type        = string
+  default     = "tango4giorgio/que-tanda-es-infra"
+  description = "GitHub owner/repository allowed to assume the deployment role."
+}
+
+variable "github_environment" {
+  type        = string
+  default     = "production"
+  description = "GitHub environment whose workflows may assume the deployment role."
+}
+
+variable "terraform_state_bucket_name" {
+  type        = string
+  description = "Globally unique S3 bucket name for the main configuration's Terraform state."
+}
+
+variable "terraform_lock_table_name" {
+  type        = string
+  default     = "tango-music-game-terraform-locks"
+  description = "DynamoDB table used to lock the main configuration's Terraform state."
+}

@@ -1,12 +1,15 @@
 # Deployer user bootstrap (least privilege)
 
 This is a **separate, one-time-use Terraform root module** with its own state — it is not
-part of the main `backend-infra` configuration one directory up. Its only job is to create a
-dedicated IAM user scoped to exactly the AWS permissions the main configuration needs (Lambda,
-IAM roles for those Lambdas, API Gateway v2, CloudWatch Logs, SSM Parameter Store, and a
-read-only `sts:GetCallerIdentity` check) — nothing else. No `AdministratorAccess`, no access to
-any other AWS service, no access to any resource outside the `tango-music-game-*` naming
-prefix.
+part of the main `backend-infra` configuration one directory up. It creates:
+
+- the legacy command-line deployer user;
+- an encrypted, versioned, private S3 bucket for the main Terraform state;
+- a DynamoDB state-lock table;
+- the GitHub Actions OIDC provider and a production deployment role;
+- the least-privilege deployment policy used by both deployment identities.
+
+The GitHub role can be assumed only by the configured repository's `production` environment.
 
 ## Why you still need existing credentials once
 
@@ -23,9 +26,14 @@ run of the main `backend-infra` configuration.
 
 ```sh
 cd backend-infra/bootstrap
+cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform apply
 ```
+
+Set `terraform_state_bucket_name` in `terraform.tfvars` to a globally unique bucket name before
+applying. Override `github_repository` or `github_environment` only when the workflow location
+or protected environment name differs from the defaults.
 
 Retrieve the generated credentials (the secret is marked `sensitive`, so it never appears in
 the normal `apply` output):
@@ -49,6 +57,18 @@ Verify it works and check the identity it reports:
 ```sh
 aws sts get-caller-identity --profile tango-deployer
 ```
+
+Configure the bootstrap outputs as variables on the GitHub `production` environment:
+
+```sh
+terraform output github_actions_role_arn
+terraform output terraform_state_bucket_name
+terraform output terraform_lock_table_name
+```
+
+Use these values for `AWS_ROLE_ARN`, `TF_STATE_BUCKET`, and `TF_LOCK_TABLE` respectively.
+The deployment role additionally has access only to the named state object and lock table; the
+legacy command-line user retains only the application deployment permissions described below.
 
 From now on, run every command in the main `backend-infra/README.md` (its `terraform
 init`/`plan`/`apply`) with `AWS_PROFILE=tango-deployer` set, instead of whatever broader

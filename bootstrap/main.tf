@@ -149,3 +149,137 @@ resource "aws_iam_user_policy_attachment" "deployer" {
 resource "aws_iam_access_key" "deployer" {
   user = aws_iam_user.deployer.name
 }
+
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = var.terraform_state_bucket_name
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_dynamodb_table" "terraform_locks" {
+  name         = var.terraform_lock_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+data "tls_certificate" "github_actions" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+resource "aws_iam_openid_connect_provider" "github_actions" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.github_actions.certificates[0].sha1_fingerprint]
+}
+
+data "aws_iam_policy_document" "github_actions_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:environment:${var.github_environment}"]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions_deployer" {
+  name               = "${var.resource_name_prefix}-github-actions-deployer"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_deployer" {
+  role       = aws_iam_role.github_actions_deployer.name
+  policy_arn = aws_iam_policy.deployer.arn
+}
+
+data "aws_iam_policy_document" "terraform_state" {
+  statement {
+    actions = ["s3:ListBucket"]
+    resources = [
+      aws_s3_bucket.terraform_state.arn,
+    ]
+  }
+
+  statement {
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+    ]
+    resources = [
+      "${aws_s3_bucket.terraform_state.arn}/backend-infra/terraform.tfstate",
+    ]
+  }
+
+  statement {
+    actions = [
+      "dynamodb:DeleteItem",
+      "dynamodb:DescribeTable",
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+    ]
+    resources = [
+      aws_dynamodb_table.terraform_locks.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "terraform_state" {
+  name   = "${var.resource_name_prefix}-terraform-state"
+  role   = aws_iam_role.github_actions_deployer.id
+  policy = data.aws_iam_policy_document.terraform_state.json
+}
