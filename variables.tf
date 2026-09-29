@@ -6,17 +6,17 @@ variable "aws_region" {
 variable "backend_release_repo" {
   type        = string
   default     = "tango4giorgio/que-tanda-es-backend"
-  description = "GitHub \"owner/repo\" whose tagged Releases publish the built Lambda package .zip assets (get_round.zip, gateway.zip, submit_feedback.zip)."
+  description = "GitHub \"owner/repo\" whose tagged Releases publish the built Lambda package .zip assets."
 }
 
 variable "backend_release_tag" {
   type        = string
-  description = "Git tag of the backend release to deploy (e.g. \"v0.2.0\"). Must match a published release on backend_release_repo containing get_round.zip, gateway.zip, and submit_feedback.zip assets. Pinned explicitly (no default) so deployments are reproducible and reviewable."
+  description = "Git tag of the backend release to deploy. Must contain get_game.zip, get_previews.zip, gateway.zip, and submit_feedback.zip."
 }
 
 variable "gateway_target_function_names" {
   type        = list(string)
-  default     = ["tango-music-game-get-round", "tango-music-game-submit-feedback"]
+  default     = ["tango-music-game-get-game", "tango-music-game-get-previews", "tango-music-game-submit-feedback"]
   description = "Target Lambda function names the gateway's IAM role is permitted to invoke; must stay in sync with backend/src/gateway_config/routes.json."
 }
 

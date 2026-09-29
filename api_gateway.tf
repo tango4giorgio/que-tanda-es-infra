@@ -1,39 +1,60 @@
-resource "aws_apigatewayv2_api" "round" {
-  name          = "tango-music-game-round"
+resource "aws_apigatewayv2_api" "game" {
+  name          = "tango-music-game"
   protocol_type = "HTTP"
   cors_configuration {
     allow_headers = ["content-type"]
-    allow_methods = ["GET"]
+    allow_methods = ["GET", "POST"]
     allow_origins = ["*"]
     max_age       = 3600
   }
 }
 
-resource "aws_apigatewayv2_integration" "get_round" {
-  api_id                 = aws_apigatewayv2_api.round.id
+resource "aws_apigatewayv2_integration" "get_game" {
+  api_id                 = aws_apigatewayv2_api.game.id
   integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.get_round.invoke_arn
+  integration_uri        = aws_lambda_function.get_game.invoke_arn
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "get_round" {
-  api_id    = aws_apigatewayv2_api.round.id
-  route_key = "GET /round"
-  target    = "integrations/${aws_apigatewayv2_integration.get_round.id}"
+resource "aws_apigatewayv2_route" "get_game" {
+  api_id    = aws_apigatewayv2_api.game.id
+  route_key = "GET /game"
+  target    = "integrations/${aws_apigatewayv2_integration.get_game.id}"
+}
+
+resource "aws_apigatewayv2_integration" "get_previews" {
+  api_id                 = aws_apigatewayv2_api.game.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.get_previews.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "get_previews" {
+  api_id    = aws_apigatewayv2_api.game.id
+  route_key = "POST /previews"
+  target    = "integrations/${aws_apigatewayv2_integration.get_previews.id}"
 }
 
 resource "aws_apigatewayv2_stage" "default" {
-  api_id      = aws_apigatewayv2_api.round.id
+  api_id      = aws_apigatewayv2_api.game.id
   name        = "$default"
   auto_deploy = true
 }
 
-resource "aws_lambda_permission" "api_gateway" {
+resource "aws_lambda_permission" "get_game_api_gateway" {
   statement_id  = "AllowApiGatewayInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.get_round.function_name
+  function_name = aws_lambda_function.get_game.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.round.execution_arn}/*/GET/round"
+  source_arn    = "${aws_apigatewayv2_api.game.execution_arn}/*/GET/game"
+}
+
+resource "aws_lambda_permission" "get_previews_api_gateway" {
+  statement_id  = "AllowApiGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.get_previews.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.game.execution_arn}/*/POST/previews"
 }
 
 # The gateway's own single entry point: a catch-all $default route forwards

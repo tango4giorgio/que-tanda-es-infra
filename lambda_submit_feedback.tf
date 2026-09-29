@@ -16,7 +16,7 @@ resource "aws_iam_role_policy_attachment" "submit_feedback_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Same SSM read permission as get_round's role (the database connection string
+# Same SSM read permission as the game and preview roles (the database connection string
 # is read-only from this Lambda's perspective too; the write happens over the
 # resulting Postgres connection, not via any additional AWS-level permission).
 resource "aws_iam_role_policy" "submit_feedback_secret" {

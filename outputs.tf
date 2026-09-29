@@ -1,9 +1,13 @@
-output "round_api_url" {
+output "game_api_url" {
   value = aws_apigatewayv2_stage.default.invoke_url
 }
 
-output "get_round_lambda_arn" {
-  value = aws_lambda_function.get_round.arn
+output "get_game_lambda_arn" {
+  value = aws_lambda_function.get_game.arn
+}
+
+output "get_previews_lambda_arn" {
+  value = aws_lambda_function.get_previews.arn
 }
 
 output "gateway_endpoint" {

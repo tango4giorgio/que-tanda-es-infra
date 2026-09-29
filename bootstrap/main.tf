@@ -6,7 +6,7 @@ resource "aws_iam_user" "deployer" {
 }
 
 # Scoped to exactly what the main backend-infra configuration provisions today
-# (lambda_get_round.tf, lambda_submit_feedback.tf, lambda_gateway.tf,
+# (lambda_get_game.tf, lambda_get_previews.tf, lambda_submit_feedback.tf, lambda_gateway.tf,
 # api_gateway.tf, ssm.tf). Update this alongside any new resource type added
 # to the main configuration, or `terraform apply` there will fail with an
 # access-denied error using this user.
@@ -124,7 +124,7 @@ data "aws_iam_policy_document" "deployer" {
   }
 
   # Used by the main configuration's data "aws_caller_identity" "current"
-  # (lambda_get_round.tf) and by anyone verifying these credentials work.
+  # (lambda_get_game.tf) and by anyone verifying these credentials work.
   statement {
     sid       = "StsCallerIdentityReadOnly"
     actions   = ["sts:GetCallerIdentity"]

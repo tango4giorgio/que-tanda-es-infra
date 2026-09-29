@@ -1,9 +1,8 @@
 # Tango Music Game Backend Infrastructure
 
 Terraform for the tango music game's Supabase and AWS resources. This repository consumes the
-immutable Lambda packages built from the sibling `backend/` repository: the round-delivery
-package, the anonymous-feedback package, and the reverse-proxy gateway package that routes
-requests to both.
+immutable Lambda packages built from the sibling `backend/` repository: complete-game
+generation, batched preview resolution, anonymous feedback, and the reverse-proxy gateway.
 
 ## Resources
 
@@ -11,12 +10,12 @@ requests to both.
 - Supabase SSL enforcement and private application schema settings
 - AWS SSM Parameter Store `SecureString` for the transaction-pooler connection string (free
   Standard tier, no customer-managed KMS key)
-- Python 3.12 ARM64 Lambdas (round delivery, anonymous feedback submission, and the
-  reverse-proxy gateway) with bounded reserved concurrency
+- Python 3.12 ARM64 Lambdas (game generation, preview resolution, anonymous feedback
+  submission, and the reverse-proxy gateway) with bounded reserved concurrency
 - CloudWatch log groups with explicit retention (encrypted at rest by AWS-owned keys by
   default; no customer-managed KMS key, to avoid its flat $1/month/key charge)
-- API Gateway HTTP API, fronted by the reverse-proxy gateway Lambda, exposing `GET /round`
-  and `POST /feedback`
+- API Gateway HTTP API, fronted by the reverse-proxy gateway Lambda, exposing `GET /game`,
+  `POST /previews`, and `POST /feedback`
 - Least-privilege Lambda IAM and invocation permissions
 
 The Supabase organisation must already exist. The provider creates projects inside an
@@ -143,7 +142,8 @@ Review and resolve imported drift before applying.
 
 ## Lambda packages
 
-The three Lambda `.zip` packages (`get_round.zip`, `gateway.zip`, `submit_feedback.zip`) are
+The Lambda `.zip` packages (`get_game.zip`, `get_previews.zip`, `gateway.zip`, and
+`submit_feedback.zip`) are
 **not built locally**. They are built by the backend repo's own CI
 (`.github/workflows/release.yml` in
 [`que-tanda-es-backend`](https://github.com/tango4giorgio/que-tanda-es-backend)) and published
@@ -202,7 +202,7 @@ The Lambda uses the Supabase shared transaction pooler on port 6543. The current
 string uses encrypted transport with `sslmode=require`; move to `sslmode=verify-full` when the
 Supabase CA certificate is packaged and supplied consistently to local and Lambda runtimes.
 
-The plan must show the reverse-proxy gateway route to both `GET /round` and `POST /feedback`,
-a scoped secret-read policy per Lambda, bounded Lambda concurrency, the protected Supabase
-project, and the transaction-pooler connection output. No MusicBrainz refresh worker is
-deployed by Terraform.
+The plan must show reverse-proxy gateway routes for `GET /game`, `POST /previews`, and
+`POST /feedback`, a scoped secret-read policy per Lambda, bounded Lambda concurrency, the
+protected Supabase project, and the transaction-pooler connection output. No MusicBrainz
+refresh worker is deployed by Terraform.

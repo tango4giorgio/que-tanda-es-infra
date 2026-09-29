@@ -1,7 +1,7 @@
-check "round_route_is_read_only" {
+check "game_route_is_read_only" {
   assert {
-    condition     = aws_apigatewayv2_route.get_round.route_key == "GET /round"
-    error_message = "The round API must remain read-only."
+    condition     = aws_apigatewayv2_route.get_game.route_key == "GET /game"
+    error_message = "The game creation API must remain GET-only."
   }
 }
 
@@ -14,7 +14,7 @@ check "transaction_pooler_is_used" {
 
 check "lambda_concurrency_is_bounded" {
   assert {
-    condition     = aws_lambda_function.get_round.reserved_concurrent_executions > 0
+    condition     = aws_lambda_function.get_game.reserved_concurrent_executions > 0
     error_message = "Reserved concurrency must protect the Supabase connection limit."
   }
 }

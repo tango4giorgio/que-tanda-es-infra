@@ -1,10 +1,11 @@
-# Downloads the three Lambda package .zip assets from a tagged GitHub Release of the backend
+# Downloads the Lambda package .zip assets from a tagged GitHub Release of the backend
 # repo (var.backend_release_repo / var.backend_release_tag), caching each by tag under
 # .lambda-packages/ so repeat plans/applies for the same tag don't re-download. See
 # scripts/fetch-lambda-package.sh for the download+hash logic.
 locals {
   lambda_package_assets = {
-    get_round       = "get_round.zip"
+    get_game        = "get_game.zip"
+    get_previews    = "get_previews.zip"
     gateway         = "gateway.zip"
     submit_feedback = "submit_feedback.zip"
   }
