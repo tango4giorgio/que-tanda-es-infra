@@ -4,12 +4,22 @@ This is a **separate, one-time-use Terraform root module** with its own state �
 part of the main `backend-infra` configuration one directory up. It creates:
 
 - the legacy command-line deployer user;
-- an encrypted, versioned, private S3 bucket for the main Terraform state;
-- a DynamoDB state-lock table;
 - the GitHub Actions OIDC provider and a production deployment role;
-- the least-privilege deployment policy used by both deployment identities.
+- the least-privilege deployment policy used by both deployment identities;
+- a dedicated Supabase project and Postgres database to hold the main configuration's
+  Terraform state.
 
 The GitHub role can be assumed only by the configured repository's `production` environment.
+The main configuration stores its own state directly in a Postgres database inside the project
+created here (Terraform's `pg` backend), rather than as a file.
+
+## Why the Terraform-state project is separate
+
+The main configuration creates the application's own Supabase project
+(`supabase_project.catalogue`). Terraform needs somewhere to store state *before* it can create
+anything, so the state database cannot live inside the project the main configuration is about
+to create — it needs a project that already exists. This module creates that project for you,
+and outputs a ready-to-use connection string — no further manual setup is needed.
 
 ## Why you still need existing credentials once
 
@@ -24,16 +34,24 @@ run of the main `backend-infra` configuration.
 
 ## Usage
 
+Export a Supabase personal access token first (sensitive; never put a real token in
+`terraform.tfvars`):
+
+```sh
+export TF_VAR_supabase_access_token='<Supabase personal access token>'
+```
+
 ```sh
 cd backend-infra/bootstrap
 cp terraform.tfvars.example terraform.tfvars
+# edit terraform.tfvars and set supabase_organization_id to your org slug
 terraform init
 terraform apply
 ```
 
-Set `terraform_state_bucket_name` in `terraform.tfvars` to a globally unique bucket name before
-applying. Override `github_repository` or `github_environment` only when the workflow location
-or protected environment name differs from the defaults.
+Override `github_repository` or `github_environment` only when the workflow location or
+protected environment name differs from the defaults. Override `tfstate_project_name` or
+`supabase_region` only if you want the Terraform-state project named or located differently.
 
 Retrieve the generated credentials (the secret is marked `sensitive`, so it never appears in
 the normal `apply` output):
@@ -41,7 +59,12 @@ the normal `apply` output):
 ```sh
 terraform output deployer_access_key_id
 terraform output -raw deployer_secret_access_key
+terraform output -raw tfstate_database_url
 ```
+
+Use `tfstate_database_url` directly as `SUPABASE_TFSTATE_DATABASE_URL` in the main
+`backend-infra/README.md`'s "State security" section — the connection string already points at
+the Postgres database created above, with no manual bucket or access-key setup required.
 
 Configure a dedicated AWS CLI profile for the deployer user rather than overwriting your
 existing default profile:
@@ -62,13 +85,10 @@ Configure the bootstrap outputs as variables on the GitHub `production` environm
 
 ```sh
 terraform output github_actions_role_arn
-terraform output terraform_state_bucket_name
-terraform output terraform_lock_table_name
 ```
 
-Use these values for `AWS_ROLE_ARN`, `TF_STATE_BUCKET`, and `TF_LOCK_TABLE` respectively.
-The deployment role additionally has access only to the named state object and lock table; the
-legacy command-line user retains only the application deployment permissions described below.
+Use this value for `AWS_ROLE_ARN`. Use `terraform output -raw tfstate_database_url` for
+`SUPABASE_TFSTATE_DATABASE_URL` — no further manual steps are needed to make it usable.
 
 From now on, run every command in the main `backend-infra/README.md` (its `terraform
 init`/`plan`/`apply`) with `AWS_PROFILE=tango-deployer` set, instead of whatever broader
@@ -115,3 +135,18 @@ Update your `tango-deployer` AWS CLI profile with the new key pair afterwards.
 To remove the deployer user entirely (e.g. tearing down the whole project), run `terraform
 destroy` here only after the main `backend-infra` configuration no longer needs it — you cannot
 apply changes there with a user that no longer exists.
+
+## Rotating the Terraform-state database password
+
+```sh
+terraform taint random_password.tfstate_database
+terraform apply
+```
+
+This generates a new password and updates it on the Supabase project in one step. Re-fetch the
+connection string afterwards and update `SUPABASE_TFSTATE_DATABASE_URL` everywhere it is
+configured (local shell, GitHub environment secret):
+
+```sh
+terraform output -raw tfstate_database_url
+```

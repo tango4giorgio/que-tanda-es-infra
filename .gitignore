@@ -6,6 +6,7 @@
 *.log
 .terraform.lock.hcl
 .lambda-packages/
+*.tfbackend
 .DS_Store
 Thumbs.db
 *.tmp

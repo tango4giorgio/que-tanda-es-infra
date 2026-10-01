@@ -28,13 +28,25 @@ variable "github_environment" {
   description = "GitHub environment whose workflows may assume the deployment role."
 }
 
-variable "terraform_state_bucket_name" {
+variable "supabase_access_token" {
   type        = string
-  description = "Globally unique S3 bucket name for the main configuration's Terraform state."
+  sensitive   = true
+  description = "Supabase personal access token used by the Terraform provider to create the dedicated Terraform-state project."
 }
 
-variable "terraform_lock_table_name" {
+variable "supabase_organization_id" {
   type        = string
-  default     = "tango-music-game-terraform-locks"
-  description = "DynamoDB table used to lock the main configuration's Terraform state."
+  description = "Existing Supabase organisation slug (Organisation Settings -> General -> Slug) that will own the Terraform-state project. Must already exist; Terraform cannot create organisations."
+}
+
+variable "tfstate_project_name" {
+  type        = string
+  default     = "tango-music-game-tfstate"
+  description = "Name of the dedicated Supabase project created solely to hold the Terraform state Storage bucket. Kept separate from the application project so state exists before the application project is created."
+}
+
+variable "supabase_region" {
+  type        = string
+  default     = "eu-west-2"
+  description = "Supabase region for the Terraform-state project. Does not need to match the main configuration's supabase_region, but keeping them aligned avoids unnecessary cross-region latency."
 }

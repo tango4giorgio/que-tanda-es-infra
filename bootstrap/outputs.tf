@@ -15,10 +15,13 @@ output "github_actions_role_arn" {
   value = aws_iam_role.github_actions_deployer.arn
 }
 
-output "terraform_state_bucket_name" {
-  value = aws_s3_bucket.terraform_state.id
+output "tfstate_project_ref" {
+  value       = supabase_project.tfstate.id
+  description = "Project reference for the dedicated Terraform-state Supabase project, useful for finding it in the dashboard."
 }
 
-output "terraform_lock_table_name" {
-  value = aws_dynamodb_table.terraform_locks.name
+output "tfstate_database_url" {
+  value       = local.tfstate_database_url
+  description = "Postgres connection string for Terraform's pg backend (conn_str). Contains credentials; never commit it."
+  sensitive   = true
 }

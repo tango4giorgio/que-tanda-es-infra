@@ -150,60 +150,6 @@ resource "aws_iam_access_key" "deployer" {
   user = aws_iam_user.deployer.name
 }
 
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = var.terraform_state_bucket_name
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = var.terraform_lock_table_name
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
 data "tls_certificate" "github_actions" {
   url = "https://token.actions.githubusercontent.com"
 }
@@ -247,39 +193,47 @@ resource "aws_iam_role_policy_attachment" "github_actions_deployer" {
   policy_arn = aws_iam_policy.deployer.arn
 }
 
-data "aws_iam_policy_document" "terraform_state" {
-  statement {
-    actions = ["s3:ListBucket"]
-    resources = [
-      aws_s3_bucket.terraform_state.arn,
-    ]
+# Dedicated Supabase project used only to host the Postgres database that
+# stores Terraform state for the main backend-infra configuration (via its
+# "pg" backend). It must be a separate project from the application's own
+# (created by that configuration's supabase_project.catalogue), since the
+# state backend must exist before Terraform can create anything else.
+resource "random_password" "tfstate_database" {
+  length  = 32
+  special = true
+}
+
+resource "supabase_project" "tfstate" {
+  organization_id   = var.supabase_organization_id
+  name              = var.tfstate_project_name
+  database_password = random_password.tfstate_database.result
+  region            = var.supabase_region
+  # State storage only; no application workload runs against this project's
+  # database, so the smallest free-tier compute size is sufficient.
+  instance_size = "nano"
+
+  lifecycle {
+    prevent_destroy = true
   }
 
-  statement {
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-    ]
-    resources = [
-      "${aws_s3_bucket.terraform_state.arn}/backend-infra/terraform.tfstate",
-    ]
-  }
-
-  statement {
-    actions = [
-      "dynamodb:DeleteItem",
-      "dynamodb:DescribeTable",
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-    ]
-    resources = [
-      aws_dynamodb_table.terraform_locks.arn,
-    ]
+  timeouts {
+    create = "30m"
+    update = "30m"
   }
 }
 
-resource "aws_iam_role_policy" "terraform_state" {
-  name   = "${var.resource_name_prefix}-terraform-state"
-  role   = aws_iam_role.github_actions_deployer.id
-  policy = data.aws_iam_policy_document.terraform_state.json
+# Connection string for Terraform's "pg" backend. Uses the Supavisor pooler
+# in session mode (port 5432, not the transaction-mode port 6543 used for
+# the application's own runtime connections) because the pg backend relies
+# on Postgres advisory locks for state locking, and those locks do not
+# survive PgBouncer/Supavisor transaction pooling. Session mode also works
+# over IPv4 without the paid add-on that direct (non-pooled) connections
+# require.
+locals {
+  tfstate_database_url = format(
+    "postgresql://%s:%s@aws-0-%s.pooler.supabase.co:5432/postgres?sslmode=require",
+    urlencode("postgres.${supabase_project.tfstate.id}"),
+    urlencode(random_password.tfstate_database.result),
+    var.supabase_region,
+  )
 }

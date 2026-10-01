@@ -1,8 +1,13 @@
 aws_region = "eu-west-2"
 
-resource_name_prefix       = "tango-music-game"
-deployer_user_name         = "tango-music-game-deployer"
-github_repository          = "tango4giorgio/que-tanda-es-infra"
-github_environment         = "production"
-terraform_state_bucket_name = "replace-with-a-globally-unique-bucket-name"
-terraform_lock_table_name   = "tango-music-game-terraform-locks"
+resource_name_prefix = "tango-music-game"
+deployer_user_name   = "tango-music-game-deployer"
+github_repository    = "tango4giorgio/que-tanda-es-infra"
+github_environment   = "production"
+
+# Set TF_VAR_supabase_access_token in your shell instead of putting it here
+# (sensitive; do not commit a real token). Example:
+#   export TF_VAR_supabase_access_token='<Supabase personal access token>'
+supabase_organization_id = "<your-supabase-org-slug>"
+tfstate_project_name     = "tango-music-game-tfstate"
+supabase_region           = "eu-west-2"

@@ -44,19 +44,17 @@ jobs:
         shell: bash
         env:
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
-          TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
           SUPABASE_ORGANIZATION_ID: ${{ vars.SUPABASE_ORGANIZATION_ID }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DATABASE_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
+          SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
         run: |
           set -euo pipefail
           [[ -n "$AWS_ROLE_ARN" ]] || { echo "::error::AWS_ROLE_ARN is not configured on the production environment."; exit 1; }
-          [[ -n "$TF_STATE_BUCKET" ]] || { echo "::error::TF_STATE_BUCKET is not configured on the production environment."; exit 1; }
-          [[ -n "$TF_LOCK_TABLE" ]] || { echo "::error::TF_LOCK_TABLE is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_ORGANIZATION_ID" ]] || { echo "::error::SUPABASE_ORGANIZATION_ID is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_DATABASE_PASSWORD" ]] || { echo "::error::SUPABASE_DATABASE_PASSWORD is not configured on the production environment."; exit 1; }
+          [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -66,13 +64,13 @@ jobs:
           role-session-name: github-actions-terraform
 
       - name: Initialise Terraform
+        env:
+          SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
         run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="key=backend-infra/terraform.tfstate" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
-            -backend-config="encrypt=true"
+          cat > supabase.tfbackend <<EOF
+          conn_str = "$SUPABASE_TFSTATE_DATABASE_URL"
+          EOF
+          terraform init -backend-config=supabase.tfbackend
 
       - name: Check formatting
         run: terraform fmt -check -recursive

@@ -124,21 +124,45 @@ validated range of 1–20 unless the Supabase connection budget is deliberately 
 Terraform state contains the Supabase database password and generated connection URL even
 though CLI output marks them sensitive. For any shared environment:
 
-- use the encrypted S3 backend and DynamoDB locking created by the bootstrap module;
-- grant state access only to infrastructure maintainers and deployment identities;
+- use the dedicated Terraform-state Postgres database described below;
+- grant its connection string only to infrastructure maintainers and the deployment identity;
 - never commit state, plans, variable files, or copied secret output;
 - keep `prevent_destroy` on the Supabase project.
 
-For local commands, initialise the same remote backend used by GitHub Actions:
+Before initialising Terraform, run the `bootstrap/` module first if you have not already —
+besides the AWS deployer user and GitHub Actions role, it also creates a dedicated Supabase
+project and database to hold Terraform state (see `bootstrap/README.md`). It must be separate
+from the application's own Supabase project because this configuration creates that project,
+and Terraform needs its state backend before it can create any resources.
+
+State is stored using Terraform's `pg` backend, which keeps state as rows in a Postgres table
+rather than as a file, and uses Postgres advisory locks for real state locking — concurrent
+`plan`/`apply` runs are safely serialised instead of silently racing. Retrieve the ready-to-use
+connection string directly from the bootstrap module's output:
 
 ```sh
-terraform init \
-  -backend-config="bucket=<state-bucket>" \
-  -backend-config="key=backend-infra/terraform.tfstate" \
-  -backend-config="region=eu-west-2" \
-  -backend-config="dynamodb_table=<lock-table>" \
-  -backend-config="encrypt=true"
+cd bootstrap && terraform output -raw tfstate_database_url && cd ..
 ```
+
+The connection string uses the Supabase connection pooler in **session mode** (port `5432`),
+not the transaction-mode pooler (port `6543`) used for the application's own runtime
+connections — advisory locks do not survive transaction-mode pooling, so using the wrong mode
+silently disables locking.
+
+Set the connection string in your shell, then initialise:
+
+```sh
+export SUPABASE_TFSTATE_DATABASE_URL='<connection string from bootstrap output>'
+
+cat > supabase.tfbackend <<EOF
+conn_str = "$SUPABASE_TFSTATE_DATABASE_URL"
+EOF
+
+terraform init -backend-config=supabase.tfbackend
+```
+
+The generated `supabase.tfbackend` file contains credentials and is ignored to prevent an
+accidental secret commit. This configuration has no existing state to migrate.
 
 ## Existing Supabase project
 
@@ -201,19 +225,18 @@ terraform apply
 
 The `Deploy infrastructure` workflow performs a manual production deployment using a backend
 release tag supplied when the workflow is started. It authenticates to AWS using GitHub OIDC,
-uses the shared S3 state backend with DynamoDB locking, checks formatting, validates the
-configuration, creates a saved plan, and applies that exact plan.
+stores state in the dedicated Terraform-state Postgres database, checks formatting, validates
+the configuration, creates a saved plan, and applies that exact plan locally in GitHub Actions.
 
 Create a GitHub environment named `production`, add any required reviewers, and configure:
 
 | Type | Name | Value |
 | --- | --- | --- |
 | Environment variable | `AWS_ROLE_ARN` | `github_actions_role_arn` from the bootstrap outputs |
-| Environment variable | `TF_STATE_BUCKET` | `terraform_state_bucket_name` from the bootstrap outputs |
-| Environment variable | `TF_LOCK_TABLE` | `terraform_lock_table_name` from the bootstrap outputs |
 | Environment variable | `SUPABASE_ORGANIZATION_ID` | Supabase organisation slug |
 | Environment secret | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token |
 | Environment secret | `SUPABASE_DATABASE_PASSWORD` | Supabase database password |
+| Environment secret | `SUPABASE_TFSTATE_DATABASE_URL` | `tfstate_database_url` from the bootstrap outputs |
 
 Run the bootstrap module once before the first deployment, then open **Actions**, choose
 **Deploy infrastructure**, select **Run workflow**, and enter a published backend release tag.
