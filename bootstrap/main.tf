@@ -195,9 +195,9 @@ resource "aws_iam_role_policy_attachment" "github_actions_deployer" {
 
 # Dedicated Supabase project used only to host the Postgres database that
 # stores Terraform state for the main backend-infra configuration (via its
-# "pg" backend). It must be a separate project from the application's own
-# (created by that configuration's supabase_project.catalogue), since the
-# state backend must exist before Terraform can create anything else.
+# "pg" backend). It must be separate from the application's own project
+# (created by the one-off app-database configuration), since the state
+# backend must exist before Terraform can create anything else.
 resource "random_password" "tfstate_database" {
   length  = 32
   special = true

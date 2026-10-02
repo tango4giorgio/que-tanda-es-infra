@@ -15,11 +15,11 @@ created here (Terraform's `pg` backend), rather than as a file.
 
 ## Why the Terraform-state project is separate
 
-The main configuration creates the application's own Supabase project
-(`supabase_project.catalogue`). Terraform needs somewhere to store state *before* it can create
-anything, so the state database cannot live inside the project the main configuration is about
-to create — it needs a project that already exists. This module creates that project for you,
-and outputs a ready-to-use connection string — no further manual setup is needed.
+The one-off `app-database/` configuration creates the application's own Supabase project.
+Terraform needs somewhere to store state *before* it can create anything, so the state database
+cannot live inside the application project that configuration is about to create — it needs a
+project that already exists. This module creates that project for you and outputs a ready-to-use
+connection string.
 
 ## Why you still need existing credentials once
 
@@ -112,9 +112,8 @@ The attached policy (see `main.tf`) only allows:
 
 It **cannot** create or modify any other IAM user, role, or policy; touch any other AWS
 service; or touch any resource outside the `tango-music-game` naming prefix. It also has no
-Supabase permissions of any kind — the Supabase Terraform provider authenticates separately via
-`TF_VAR_supabase_access_token` (see the main `backend-infra/README.md`), which this AWS user has
-no bearing on.
+Supabase permissions of any kind — the one-off `app-database/` Terraform root authenticates
+separately with its own Supabase access token, which this AWS identity cannot access.
 
 If you rename resources in the main configuration (a different `resource_name_prefix`, a new
 AWS service, etc.), update `main.tf` here to match, or the deployer user's permissions will be

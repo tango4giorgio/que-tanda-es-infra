@@ -48,49 +48,20 @@ variable "log_retention_days" {
   }
 }
 
-variable "supabase_access_token" {
+variable "supabase_project_ref" {
   type        = string
-  sensitive   = true
-  description = "Supabase personal access token used by the Terraform provider."
-}
-
-variable "supabase_organization_id" {
-  type        = string
-  description = "Existing Supabase organisation slug from Organisation Settings."
-}
-
-variable "supabase_project_name" {
-  type        = string
-  default     = "tango-music-game"
-  description = "Name of the Supabase project created for the catalogue backend."
-}
-
-variable "supabase_database_password" {
-  type        = string
-  sensitive   = true
-  description = "Initial password for the Supabase Postgres superuser. Used only once, at project creation time, by the Terraform supabase provider. Not used for application runtime access or migrations — see migration_runner_password and app_runtime_password."
+  description = "Reference of the application Supabase project created by the one-off app-database Terraform root."
 
   validation {
-    condition     = length(var.supabase_database_password) >= 12
-    error_message = "The Supabase database password must contain at least 12 characters."
-  }
-}
-
-variable "migration_runner_password" {
-  type        = string
-  sensitive   = true
-  description = "Password for the migration_runner Postgres role, created by backend/src/migrations/0003_create_database_roles.sql. Used only by the release-time migration workflow; rotates independently of the one-off superuser password and the app_runtime password."
-
-  validation {
-    condition     = length(var.migration_runner_password) >= 12
-    error_message = "The migration runner password must contain at least 12 characters."
+    condition     = can(regex("^[a-z0-9]{20}$", var.supabase_project_ref))
+    error_message = "The Supabase project reference must contain exactly 20 lowercase letters or digits."
   }
 }
 
 variable "app_runtime_password" {
   type        = string
   sensitive   = true
-  description = "Password for the least-privilege app_runtime Postgres role, created by backend/src/migrations/0003_create_database_roles.sql. This is the credential stored in SSM and used by the deployed Lambdas; it cannot run DDL."
+  description = "Password for the least-privilege app_runtime Postgres role, created by the backend database-bootstrap workflow. This is the credential stored in SSM and used by the deployed Lambdas; it cannot run DDL."
 
   validation {
     condition     = length(var.app_runtime_password) >= 12
@@ -103,4 +74,3 @@ variable "supabase_region" {
   default     = "eu-west-2"
   description = "Supabase region in which to create the project."
 }
-

@@ -19,11 +19,11 @@ output "gateway_lambda_arn" {
 }
 
 output "supabase_project_ref" {
-  value = supabase_project.catalogue.id
+  value = var.supabase_project_ref
 }
 
 output "supabase_project_url" {
-  value = "https://${supabase_project.catalogue.id}.supabase.co"
+  value = "https://${var.supabase_project_ref}.supabase.co"
 }
 
 output "supabase_database_host" {
@@ -40,8 +40,7 @@ output "supabase_database_url" {
   sensitive   = true
 }
 
-output "migration_database_url" {
-  description = "migration_runner connection string (DDL rights on schema public). Use this, not supabase_database_url, to run backend/src/migrations/*.sql."
-  value       = local.supabase_migration_database_url
-  sensitive   = true
+output "supabase_session_pooler_host" {
+  description = "Host used when manually constructing the one-off superuser and recurring migration_runner URLs. Session-mode connections use port 5432."
+  value       = "aws-0-${var.supabase_region}.pooler.supabase.com"
 }

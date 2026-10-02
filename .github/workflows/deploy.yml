@@ -27,9 +27,8 @@ jobs:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       TF_VAR_backend_release_tag: ${{ inputs.backend_release_tag }}
-      TF_VAR_supabase_access_token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      TF_VAR_supabase_database_password: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
-      TF_VAR_supabase_organization_id: ${{ vars.SUPABASE_ORGANIZATION_ID }}
+      TF_VAR_app_runtime_password: ${{ secrets.APP_RUNTIME_PASSWORD }}
+      TF_VAR_supabase_project_ref: ${{ vars.SUPABASE_PROJECT_REF }}
 
     steps:
       - name: Check out repository
@@ -44,16 +43,14 @@ jobs:
         shell: bash
         env:
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-          SUPABASE_ORGANIZATION_ID: ${{ vars.SUPABASE_ORGANIZATION_ID }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DATABASE_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          APP_RUNTIME_PASSWORD: ${{ secrets.APP_RUNTIME_PASSWORD }}
           SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
         run: |
           set -euo pipefail
           [[ -n "$AWS_ROLE_ARN" ]] || { echo "::error::AWS_ROLE_ARN is not configured on the production environment."; exit 1; }
-          [[ -n "$SUPABASE_ORGANIZATION_ID" ]] || { echo "::error::SUPABASE_ORGANIZATION_ID is not configured on the production environment."; exit 1; }
-          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is not configured on the production environment."; exit 1; }
-          [[ -n "$SUPABASE_DATABASE_PASSWORD" ]] || { echo "::error::SUPABASE_DATABASE_PASSWORD is not configured on the production environment."; exit 1; }
+          [[ -n "$SUPABASE_PROJECT_REF" ]] || { echo "::error::SUPABASE_PROJECT_REF is not configured on the production environment."; exit 1; }
+          [[ -n "$APP_RUNTIME_PASSWORD" ]] || { echo "::error::APP_RUNTIME_PASSWORD is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
 
       - name: Configure AWS credentials

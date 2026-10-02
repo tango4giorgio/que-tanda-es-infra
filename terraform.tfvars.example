@@ -3,13 +3,10 @@ aws_region = "eu-west-2"
 backend_release_repo = "tango4giorgio/que-tanda-es-backend"
 backend_release_tag  = "v0.1.0"
 
-supabase_organization_id = "your-organisation-slug"
-supabase_project_name    = "tango-music-game"
-supabase_region          = "eu-west-2"
-supabase_instance_size   = "nano"
+supabase_project_ref = "abcdefghijklmnopqrst"
+supabase_region      = "eu-west-2"
 lambda_reserved_concurrency = 5
 log_retention_days          = 30
 
 # Supply sensitive values through environment variables instead:
-# export TF_VAR_supabase_access_token='...'
-# export TF_VAR_supabase_database_password='...'
+# export TF_VAR_app_runtime_password='...'
