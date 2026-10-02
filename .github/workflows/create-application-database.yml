@@ -30,6 +30,8 @@ jobs:
       TF_VAR_supabase_access_token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       TF_VAR_supabase_database_password: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
       TF_VAR_supabase_organization_id: ${{ vars.SUPABASE_ORGANIZATION_ID }}
+      TF_VAR_migration_runner_password: ${{ secrets.MIGRATION_RUNNER_PASSWORD }}
+      TF_VAR_app_runtime_password: ${{ secrets.APP_RUNTIME_PASSWORD }}
 
     steps:
       - name: Check out repository
@@ -47,12 +49,16 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DATABASE_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
           SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          MIGRATION_RUNNER_PASSWORD: ${{ secrets.MIGRATION_RUNNER_PASSWORD }}
+          APP_RUNTIME_PASSWORD: ${{ secrets.APP_RUNTIME_PASSWORD }}
         run: |
           set -euo pipefail
           [[ -n "$SUPABASE_ORGANIZATION_ID" ]] || { echo "::error::SUPABASE_ORGANIZATION_ID is not configured on the database-creation environment."; exit 1; }
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is not configured on the database-creation environment."; exit 1; }
           [[ -n "$SUPABASE_DATABASE_PASSWORD" ]] || { echo "::error::SUPABASE_DATABASE_PASSWORD is not configured on the database-creation environment."; exit 1; }
           [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the database-creation environment."; exit 1; }
+          [[ -n "$MIGRATION_RUNNER_PASSWORD" ]] || { echo "::error::MIGRATION_RUNNER_PASSWORD is not configured on the database-creation environment."; exit 1; }
+          [[ -n "$APP_RUNTIME_PASSWORD" ]] || { echo "::error::APP_RUNTIME_PASSWORD is not configured on the database-creation environment."; exit 1; }
 
       - name: Initialise Terraform
         shell: bash

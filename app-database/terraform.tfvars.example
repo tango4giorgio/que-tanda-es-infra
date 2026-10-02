@@ -5,3 +5,5 @@ supabase_region          = "eu-west-2"
 # Supply sensitive values through environment variables instead:
 # export TF_VAR_supabase_access_token='...'
 # export TF_VAR_supabase_database_password='...'
+# export TF_VAR_migration_runner_password='...'
+# export TF_VAR_app_runtime_password='...'

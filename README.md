@@ -122,9 +122,9 @@ Set `supabase_project_ref` in `terraform.tfvars` to the reference produced by th
 `app-database/` configuration. The main infrastructure configuration does not use a Supabase
 management token or database superuser password.
 
-`TF_VAR_app_runtime_password` is the password assigned by the backend repository's one-off
-database-bootstrap workflow. Terraform uses it only to build the transaction-pooler URL stored
-in SSM for the Lambdas; it cannot run DDL.
+`TF_VAR_app_runtime_password` is the password assigned by the one-off **Create application
+database** workflow. Terraform uses it only to build the transaction-pooler URL stored in SSM
+for the Lambdas; it cannot run DDL.
 
 `lambda_reserved_concurrency` defaults to `5` and must remain within the
 validated range of 1–20 unless the Supabase connection budget is deliberately redesigned.
@@ -223,12 +223,11 @@ terraform apply
 
 ## Deployment lifecycle
 
-Database creation, database initialisation, and normal releases are deliberately separate:
+Database creation, package publication, and production deployment are deliberately separate:
 
-1. Create or import the Supabase application project once.
-2. Bootstrap the database roles and initial schema once.
-3. For each release, apply outstanding migrations before publishing Lambda packages.
-4. Deploy the published Lambda packages and AWS infrastructure.
+1. Create or import the Supabase application project and database roles once.
+2. Publish immutable backend packages without touching production.
+3. Deploy a selected backend release: migrate its schema first, then apply Terraform.
 
 ### 1. Create the application database once
 
@@ -242,62 +241,37 @@ management token and database superuser password. Create a GitHub environment na
 | Environment secret | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token |
 | Environment secret | `SUPABASE_DATABASE_PASSWORD` | Initial database superuser password |
 | Environment secret | `SUPABASE_TFSTATE_DATABASE_URL` | `tfstate_database_url` from the bootstrap outputs |
+| Environment secret | `MIGRATION_RUNNER_PASSWORD` | Strong password used only for schema migrations |
+| Environment secret | `APP_RUNTIME_PASSWORD` | Strong password used only by the deployed application |
 
-Open **Actions**, choose **Create application database**, and run the workflow. It writes the
-new `SUPABASE_PROJECT_REF` value to the workflow summary. The state is isolated in the
-`application_database_state` schema of the Terraform-state database.
+Open **Actions**, choose **Create application database**, and run the workflow. Terraform
+creates or imports the Supabase project, creates and manages the `migration_runner` and
+`app_runtime` roles and grants, and writes the new `SUPABASE_PROJECT_REF` value to the workflow
+summary. The Terraform state is isolated in the `application_database_state` schema of the
+Terraform-state database. The first normal deployment applies the initial versioned schema.
 
 If the project already exists, supply its 20-character reference as
 `existing_project_ref`. Before the next main infrastructure apply, the `removed` blocks in
 `supabase.tf` safely remove the old Supabase resources from the main state without destroying
 them; the application-database workflow imports them into its own state.
 
-After creation/import and verification, restrict or remove access to the `database-creation`
-environment. Normal deployments do not use any of its secrets.
+After creation/import and verification, restrict access to the `database-creation` environment.
+Normal deployments need only the migration and application-role passwords, not the Supabase
+management token or superuser password.
 
-### 2. Bootstrap database roles and schema once
+### 2. Release backend packages
 
-In the backend repository, create a separately protected GitHub environment named
-`database-bootstrap` with:
+Pushing a `v*` tag in the backend repository builds and publishes immutable Lambda package
+assets only. It has no production environment or database secrets and causes no production
+side effects.
 
-| Type | Name | Value |
-| --- | --- | --- |
-| Environment secret | `SUPERUSER_DATABASE_URL` | `postgres.<project-ref>` session-pooler URL on port 5432 |
-| Environment secret | `MIGRATION_DATABASE_URL` | `migration_runner.<project-ref>` session-pooler URL on port 5432 |
-| Environment secret | `MIGRATION_RUNNER_PASSWORD` | Strong password used only for schema migrations |
-| Environment secret | `APP_RUNTIME_PASSWORD` | Strong password used only by the deployed application |
-
-Run **Bootstrap application database**. The workflow creates or reconciles the two roles,
-transfers any existing public-schema objects to `migration_runner`, and applies outstanding
-versioned migrations. It is idempotent, but should normally be needed only once.
-
-Percent-encode passwords when constructing either PostgreSQL URL; the usernames are
-`postgres.<project-ref>` and `migration_runner.<project-ref>`.
-
-Once verified, remove `SUPERUSER_DATABASE_URL` or lock the environment. Release workflows
-cannot access it.
-
-### 3. Release backend packages
-
-In the backend repository's `production` environment, configure only:
-
-| Type | Name | Value |
-| --- | --- | --- |
-| Environment secret | `MIGRATION_DATABASE_URL` | `migration_runner.<project-ref>` session-pooler URL on port 5432 |
-
-Pushing a `v*` tag first runs the checksum-backed migration runner. Lambda packages are built
-and published only if every outstanding migration succeeds. The manual **Run database
-migrations manually** workflow is retained for recovery.
-
-Applied migrations are recorded in `public.schema_migration`. Editing an already-applied
-migration causes a checksum failure rather than silently replaying changed SQL.
-
-### 4. Deploy AWS infrastructure
+### 3. Migrate and deploy AWS infrastructure
 
 The `Deploy infrastructure` workflow performs a manual production deployment using a backend
-release tag supplied when the workflow is started. It authenticates to AWS using GitHub OIDC,
-stores state in the dedicated Terraform-state Postgres database, checks formatting, validates
-the configuration, creates a saved plan, and applies that exact plan locally in GitHub Actions.
+release tag supplied when the workflow is started. Terraform first creates a saved plan,
+including fetching and validating the release assets. The workflow then applies that backend
+tag's outstanding SQL migrations and finally applies the saved Terraform plan. A plan,
+migration, or release-asset failure prevents AWS deployment.
 
 Create a GitHub environment named `production`, add any required reviewers, and configure:
 
@@ -307,11 +281,13 @@ Create a GitHub environment named `production`, add any required reviewers, and 
 | Environment variable | `SUPABASE_PROJECT_REF` | Output from the application-database workflow |
 | Environment secret | `SUPABASE_TFSTATE_DATABASE_URL` | `tfstate_database_url` from the bootstrap outputs |
 | Environment secret | `APP_RUNTIME_PASSWORD` | Password assigned during database bootstrap |
+| Environment secret | `MIGRATION_RUNNER_PASSWORD` | Password assigned during database bootstrap |
 
 Run the bootstrap module once before the first deployment, then open **Actions**, choose
 **Deploy infrastructure**, select **Run workflow**, and enter a published backend release tag.
-This workflow manages AWS resources and the Lambda runtime connection only. It never receives
-the Supabase management token, database superuser password, or migration credential.
+Applied migrations are recorded in `public.schema_migration`; changing an already-applied
+migration causes a checksum failure. The workflow never receives the Supabase management token
+or database superuser password.
 
 The Lambda uses the Supabase shared transaction pooler on port 6543. The current connection
 string uses encrypted transport with `sslmode=require`; move to `sslmode=verify-full` when the

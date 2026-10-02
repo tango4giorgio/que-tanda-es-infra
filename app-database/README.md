@@ -1,8 +1,9 @@
 # Application Database
 
-One-off Terraform root for creating or importing the Supabase project used by the application.
-Normal infrastructure deployments do not run this configuration and do not receive its
-Supabase management token or database superuser password.
+One-off Terraform root for creating or importing the Supabase project and managing its
+`migration_runner` and `app_runtime` roles and grants. Normal infrastructure deployments do not
+run this configuration and do not receive its Supabase management token or database superuser
+password.
 
 Prefer the **Create application database** GitHub Actions workflow documented in the repository
 README. For local use:
@@ -11,6 +12,8 @@ README. For local use:
 cp terraform.tfvars.example terraform.tfvars
 export TF_VAR_supabase_access_token='<Supabase personal access token>'
 export TF_VAR_supabase_database_password='<strong superuser password>'
+export TF_VAR_migration_runner_password='<strong migration password>'
+export TF_VAR_app_runtime_password='<strong runtime password>'
 export SUPABASE_TFSTATE_DATABASE_URL='<Terraform-state database URL>'
 
 cat > app-database.tfbackend <<EOF

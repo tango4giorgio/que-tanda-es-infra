@@ -8,6 +8,6 @@ output "supabase_project_url" {
 }
 
 output "supabase_session_pooler_host" {
-  description = "Use port 5432 for the database-bootstrap and migration_runner connection strings."
+  description = "Session-pooler host used by Terraform role management and release migrations on port 5432."
   value       = "aws-0-${var.supabase_region}.pooler.supabase.com"
 }

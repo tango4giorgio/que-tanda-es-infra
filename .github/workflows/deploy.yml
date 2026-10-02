@@ -34,6 +34,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Check out backend release
+        uses: actions/checkout@v4
+        with:
+          repository: tango4giorgio/que-tanda-es-backend
+          ref: ${{ inputs.backend_release_tag }}
+          path: backend-release
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -45,12 +52,14 @@ jobs:
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
           APP_RUNTIME_PASSWORD: ${{ secrets.APP_RUNTIME_PASSWORD }}
+          MIGRATION_RUNNER_PASSWORD: ${{ secrets.MIGRATION_RUNNER_PASSWORD }}
           SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
         run: |
           set -euo pipefail
           [[ -n "$AWS_ROLE_ARN" ]] || { echo "::error::AWS_ROLE_ARN is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_PROJECT_REF" ]] || { echo "::error::SUPABASE_PROJECT_REF is not configured on the production environment."; exit 1; }
           [[ -n "$APP_RUNTIME_PASSWORD" ]] || { echo "::error::APP_RUNTIME_PASSWORD is not configured on the production environment."; exit 1; }
+          [[ -n "$MIGRATION_RUNNER_PASSWORD" ]] || { echo "::error::MIGRATION_RUNNER_PASSWORD is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
 
       - name: Configure AWS credentials
@@ -77,6 +86,18 @@ jobs:
 
       - name: Create deployment plan
         run: terraform plan -out=tfplan
+
+      - name: Apply database migrations
+        shell: bash
+        env:
+          PGHOST: aws-0-eu-west-2.pooler.supabase.com
+          PGPORT: "5432"
+          PGDATABASE: postgres
+          PGUSER: migration_runner.${{ vars.SUPABASE_PROJECT_REF }}
+          PGPASSWORD: ${{ secrets.MIGRATION_RUNNER_PASSWORD }}
+          PGSSLMODE: require
+          PGOPTIONS: "-c statement_timeout=60000"
+        run: backend-release/scripts/run_migrations.sh
 
       - name: Apply deployment plan
         run: terraform apply -auto-approve tfplan

@@ -61,7 +61,7 @@ variable "supabase_project_ref" {
 variable "app_runtime_password" {
   type        = string
   sensitive   = true
-  description = "Password for the least-privilege app_runtime Postgres role, created by the backend database-bootstrap workflow. This is the credential stored in SSM and used by the deployed Lambdas; it cannot run DDL."
+  description = "Password for the least-privilege app_runtime Postgres role managed by the app-database Terraform root. This is the credential stored in SSM and used by the deployed Lambdas; it cannot run DDL."
 
   validation {
     condition     = length(var.app_runtime_password) >= 12

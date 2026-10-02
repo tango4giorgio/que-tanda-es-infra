@@ -26,6 +26,28 @@ variable "supabase_database_password" {
   }
 }
 
+variable "migration_runner_password" {
+  type        = string
+  sensitive   = true
+  description = "Password for the database role that owns the application schema and applies versioned migrations."
+
+  validation {
+    condition     = length(var.migration_runner_password) >= 12
+    error_message = "The migration runner password must contain at least 12 characters."
+  }
+}
+
+variable "app_runtime_password" {
+  type        = string
+  sensitive   = true
+  description = "Password for the least-privilege role used by the deployed application."
+
+  validation {
+    condition     = length(var.app_runtime_password) >= 12
+    error_message = "The app runtime password must contain at least 12 characters."
+  }
+}
+
 variable "supabase_region" {
   type        = string
   default     = "eu-west-2"
