@@ -77,6 +77,20 @@ methods before running any `terraform` command:
    export AWS_PROFILE=my-profile
    ```
 
+   Some versions of the Terraform `aws` provider do not resolve SSO sessions from
+   `AWS_PROFILE` alone and fail with a credential error even though `aws sts get-caller-identity
+   --profile my-profile` succeeds. If that happens, export the resolved short-lived credentials
+   as plain environment variables instead, using the AWS CLI's built-in credential exporter:
+
+   ```sh
+   eval "$(aws configure export-credentials --profile my-profile --format env)"
+   ```
+
+   This reads the active SSO session for `my-profile` and sets `AWS_ACCESS_KEY_ID`,
+   `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` in the current shell, which Terraform's
+   default credential chain always understands regardless of provider version. Re-run this
+   command whenever the SSO session expires (`aws sso login --profile my-profile` again first).
+
 Verify your credentials work before touching Terraform:
 
 ```sh

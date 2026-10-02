@@ -3,7 +3,10 @@ resource "supabase_project" "catalogue" {
   name              = var.supabase_project_name
   database_password = var.supabase_database_password
   region            = var.supabase_region
-  instance_size     = var.supabase_instance_size
+  # instance_size intentionally omitted: the "nano" compute class has a
+  # known bug in the Supabase Terraform provider/platform (resizing away
+  # from it does not stick), so leave this unset and manage compute size
+  # manually in the Supabase dashboard if it's ever needed.
 
   lifecycle {
     prevent_destroy = true

@@ -82,11 +82,3 @@ variable "supabase_region" {
   description = "Supabase region in which to create the project."
 }
 
-variable "supabase_instance_size" {
-  type = string
-  # "nano" is the free-tier compute class ($0/mo). "micro" and larger are paid
-  # compute add-ons that require a Pro-plan organisation; do not change this
-  # default without confirming the cost tradeoff.
-  default     = "nano"
-  description = "Supabase compute instance size."
-}

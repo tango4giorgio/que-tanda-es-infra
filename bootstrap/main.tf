@@ -208,9 +208,10 @@ resource "supabase_project" "tfstate" {
   name              = var.tfstate_project_name
   database_password = random_password.tfstate_database.result
   region            = var.supabase_region
-  # State storage only; no application workload runs against this project's
-  # database, so the smallest free-tier compute size is sufficient.
-  instance_size = "nano"
+  # instance_size intentionally omitted: the "nano" compute class has a
+  # known bug in the Supabase Terraform provider/platform (resizing away
+  # from it does not stick), so leave this unset and manage compute size
+  # manually in the Supabase dashboard if it's ever needed.
 
   lifecycle {
     prevent_destroy = true
