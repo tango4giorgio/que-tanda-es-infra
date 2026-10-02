@@ -19,12 +19,16 @@ BEGIN
         CREATE ROLE app_runtime LOGIN;
     END IF;
 
+    -- Supabase's postgres role has CREATEROLE but is deliberately not a true superuser.
+    -- Custom roles already default to NOSUPERUSER, NOCREATEDB, NOCREATEROLE and
+    -- NOREPLICATION. Re-stating those attributes in ALTER ROLE invokes privilege checks that
+    -- Supabase rejects, so only reconcile LOGIN and the password here.
     EXECUTE format(
-        'ALTER ROLE migration_runner NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
+        'ALTER ROLE migration_runner LOGIN PASSWORD %L',
         migration_password
     );
     EXECUTE format(
-        'ALTER ROLE app_runtime NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
+        'ALTER ROLE app_runtime LOGIN PASSWORD %L',
         runtime_password
     );
 

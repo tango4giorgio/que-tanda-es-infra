@@ -5,6 +5,10 @@ One-off Terraform root for creating or importing the Supabase project and managi
 run this configuration and do not receive its Supabase management token or database superuser
 password.
 
+The role SQL is compatible with Supabase's managed `postgres` role, which has administrative
+privileges but is not a true PostgreSQL superuser. It does not attempt to alter superuser or
+replication attributes.
+
 Prefer the **Create application database** GitHub Actions workflow documented in the repository
 README. For local use:
 
