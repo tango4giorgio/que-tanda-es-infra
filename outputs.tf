@@ -35,6 +35,13 @@ output "supabase_database_port" {
 }
 
 output "supabase_database_url" {
-  value     = local.supabase_pooler_database_url
-  sensitive = true
+  description = "app_runtime connection string (SELECT/INSERT/UPDATE + EXECUTE only, no DDL). Matches what's stored in SSM for the Lambdas; cannot run migrations."
+  value       = local.supabase_pooler_database_url
+  sensitive   = true
+}
+
+output "migration_database_url" {
+  description = "migration_runner connection string (DDL rights on schema public). Use this, not supabase_database_url, to run backend/src/migrations/*.sql."
+  value       = local.supabase_migration_database_url
+  sensitive   = true
 }

@@ -68,11 +68,33 @@ variable "supabase_project_name" {
 variable "supabase_database_password" {
   type        = string
   sensitive   = true
-  description = "Initial password for the Supabase Postgres database."
+  description = "Initial password for the Supabase Postgres superuser. Used only once, at project creation time, by the Terraform supabase provider. Not used for application runtime access or migrations — see migration_runner_password and app_runtime_password."
 
   validation {
     condition     = length(var.supabase_database_password) >= 12
     error_message = "The Supabase database password must contain at least 12 characters."
+  }
+}
+
+variable "migration_runner_password" {
+  type        = string
+  sensitive   = true
+  description = "Password for the migration_runner Postgres role, created by backend/src/migrations/0003_create_database_roles.sql. Used only by the release-time migration workflow; rotates independently of the one-off superuser password and the app_runtime password."
+
+  validation {
+    condition     = length(var.migration_runner_password) >= 12
+    error_message = "The migration runner password must contain at least 12 characters."
+  }
+}
+
+variable "app_runtime_password" {
+  type        = string
+  sensitive   = true
+  description = "Password for the least-privilege app_runtime Postgres role, created by backend/src/migrations/0003_create_database_roles.sql. This is the credential stored in SSM and used by the deployed Lambdas; it cannot run DDL."
+
+  validation {
+    condition     = length(var.app_runtime_password) >= 12
+    error_message = "The app runtime password must contain at least 12 characters."
   }
 }
 

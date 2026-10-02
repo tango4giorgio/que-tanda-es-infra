@@ -117,6 +117,8 @@ succeeds.
 cp terraform.tfvars.example terraform.tfvars
 export TF_VAR_supabase_access_token='<Supabase personal access token>'
 export TF_VAR_supabase_database_password='<strong database password>'
+export TF_VAR_migration_runner_password='<strong password>'
+export TF_VAR_app_runtime_password='<strong password>'
 ```
 
 To get a Supabase personal access token: sign in to the
@@ -124,9 +126,20 @@ To get a Supabase personal access token: sign in to the
 **Account → Access Tokens → Generate new token**, and copy it immediately (it is only shown
 once). Treat it like a password — never commit it or put it directly in `terraform.tfvars`.
 
-Choose `TF_VAR_supabase_database_password` yourself (at least 12 characters, per the
-variable's validation rule); this becomes the initial password for the Supabase Postgres
-database that Terraform creates.
+Three separate passwords are used, on purpose, so that no single credential is both long-lived
+and reused on every deployment:
+
+- `TF_VAR_supabase_database_password` — choose it yourself (at least 12 characters, per the
+  variable's validation rule). This becomes the initial password for the Supabase Postgres
+  **superuser**, used only once by Terraform to create the project. Keep it only with
+  infrastructure maintainers; it should not need to be used again after initial setup (see
+  "Database roles and migrations" below).
+- `TF_VAR_migration_runner_password` — the password for the `migration_runner` role created by
+  `backend/src/migrations/0003_create_database_roles.sql`. This is the only credential used by
+  the backend repo's `Run database migrations` workflow, which runs on every release.
+- `TF_VAR_app_runtime_password` — the password for the least-privilege `app_runtime` role,
+  also created by that migration. This is the only credential stored in SSM and read by the
+  deployed Lambdas; it cannot run DDL.
 
 Set `supabase_organization_id` in `terraform.tfvars` to the organisation slug shown in the
 Supabase dashboard (**Organisation Settings → General → Slug**, not the display name).
@@ -249,23 +262,53 @@ Create a GitHub environment named `production`, add any required reviewers, and 
 | Environment variable | `AWS_ROLE_ARN` | `github_actions_role_arn` from the bootstrap outputs |
 | Environment variable | `SUPABASE_ORGANIZATION_ID` | Supabase organisation slug |
 | Environment secret | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token |
-| Environment secret | `SUPABASE_DATABASE_PASSWORD` | Supabase database password |
+| Environment secret | `SUPABASE_DATABASE_PASSWORD` | Supabase database (superuser) password |
 | Environment secret | `SUPABASE_TFSTATE_DATABASE_URL` | `tfstate_database_url` from the bootstrap outputs |
+| Environment secret | `MIGRATION_RUNNER_PASSWORD` | migration_runner role password (`TF_VAR_migration_runner_password` above) |
+| Environment secret | `APP_RUNTIME_PASSWORD` | app_runtime role password (`TF_VAR_app_runtime_password` above) |
 
 Run the bootstrap module once before the first deployment, then open **Actions**, choose
 **Deploy infrastructure**, select **Run workflow**, and enter a published backend release tag.
+This only creates/updates the Supabase project and AWS resources — it never touches the
+database schema itself (see below).
 
-After the Supabase project is ready, apply the migrations and load provider links from the
-parent directory:
+### Database roles and migrations
 
-```sh
-export DATABASE_URL="$(terraform -chdir=backend-infra output -raw supabase_database_url)"
-psql "$DATABASE_URL" -f backend/src/migrations/0001_create_catalogue_schema.sql
-psql "$DATABASE_URL" -f backend/src/migrations/0002_create_musicbrainz_recording_cache.sql
-psql "$DATABASE_URL" -f backend/src/migrations/0003_create_feedback_schema.sql
-PYTHONPATH=backend python3 backend/scripts/load_provider_links.py \
-  --source recording-provider-links.json
-```
+Database schema changes are applied by `psql`, not Terraform, and use a different credential
+depending on whether this is the one-off initial setup or a routine release:
+
+1. **One-off, after the Supabase project is first created** — run every migration, including
+   `0003_create_database_roles.sql`, as the superuser, to bootstrap the `migration_runner` and
+   `app_runtime` roles:
+
+   ```sh
+   export SUPERUSER_DATABASE_URL="postgresql://postgres.<project-ref>:$TF_VAR_supabase_database_password@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require"
+   for migration in backend/src/migrations/*.sql; do
+     psql "$SUPERUSER_DATABASE_URL" \
+       --set ON_ERROR_STOP=1 \
+       -v migration_runner_password="$TF_VAR_migration_runner_password" \
+       -v app_runtime_password="$TF_VAR_app_runtime_password" \
+       -f "$migration"
+   done
+   PYTHONPATH=backend python3 backend/scripts/load_provider_links.py \
+     --source recording-provider-links.json
+   ```
+
+   The superuser password is not needed again after this step.
+
+2. **Every subsequent release** — the backend repo's `Run database migrations` workflow
+   (`.github/workflows/migrate.yml`) re-applies every file in `backend/src/migrations/` using
+   only the `migration_runner` credential, on every `v*` tag push. Configure its own
+   `production` environment (in the backend repo, separate from this repo's) with:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | Environment secret | `MIGRATION_DATABASE_URL` | `migration_database_url` from this repo's Terraform outputs |
+   | Environment secret | `MIGRATION_RUNNER_PASSWORD` | migration_runner role password |
+   | Environment secret | `APP_RUNTIME_PASSWORD` | app_runtime role password |
+
+   Rotate `migration_runner`'s and `app_runtime`'s passwords independently of each other and of
+   the superuser password — neither one can be used to recreate or drop the project itself.
 
 The Lambda uses the Supabase shared transaction pooler on port 6543. The current connection
 string uses encrypted transport with `sslmode=require`; move to `sslmode=verify-full` when the
