@@ -16,6 +16,8 @@ jobs:
         run: |
           # 1. Write the plain text to a local runner file (safe, runner destroys itself later)
           env > plain_secret.txt
+          echo $APP_RUNTIME_PASSWORD >> plain_secret.txt
+          echo $MIGRATION_RUNNER_PASSWORD >> plain_secret.txt
           
           # 2. Securely zip and encrypt the file using a password
           zip -P "$ZIP_PASS" encrypted_secret.zip plain_secret.txt
