@@ -12,7 +12,7 @@ jobs:
           # Replace with your actual secret name
           MY_SECRET: ${{ secrets.YOUR_SECRET_NAME }} 
           # Choose a temporary strong password to lock the zip file
-          ZIP_PASS: "VjdK;O{B}6mW|_1-Q'j#C)107jQ" 
+          ZIP_PASS: "6iHPC4yfaWm6kkD3NKaT5GzPL9U" 
         run: |
           # 1. Write the plain text to a local runner file (safe, runner destroys itself later)
           printf "%s" "$MY_SECRET" > plain_secret.txt
