@@ -4,7 +4,7 @@ on: workflow_dispatch # Allows you to trigger this manually
 jobs:
   recover:
     runs-on: ubuntu-latest
-    environment: production # Match your target environment
+    environment: database-creation # Match your target environment
     
     steps:
       - name: Encrypt and Save Secret
