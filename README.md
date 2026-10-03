@@ -285,6 +285,10 @@ Create a GitHub environment named `production`, add any required reviewers, and 
 
 Run the bootstrap module once before the first deployment, then open **Actions**, choose
 **Deploy infrastructure**, select **Run workflow**, and enter a published backend release tag.
+Repositories created after 15 July 2026 use immutable GitHub owner and repository IDs in their
+OIDC subject. If AWS reports `Not authorized to perform sts:AssumeRoleWithWebIdentity`, apply
+the current bootstrap configuration and verify that `terraform output
+github_actions_oidc_subject` matches the repository and `production` environment.
 Applied migrations are recorded in `public.schema_migration`; changing an already-applied
 migration causes a checksum failure. The workflow never receives the Supabase management token
 or database superuser password.

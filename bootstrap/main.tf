@@ -11,7 +11,7 @@ resource "aws_iam_user" "deployer" {
 # to the main configuration, or `terraform apply` there will fail with an
 # access-denied error using this user.
 data "aws_iam_policy_document" "deployer" {
-  # IAM roles/policies for the three Lambda functions (aws_iam_role,
+  # IAM roles/policies for the four Lambda functions (aws_iam_role,
   # aws_iam_role_policy, aws_iam_role_policy_attachment in lambda_*.tf).
   statement {
     sid = "IamRoleManagement"
@@ -48,7 +48,7 @@ data "aws_iam_policy_document" "deployer" {
     }
   }
 
-  # The three Lambda functions themselves (aws_lambda_function, aws_lambda_permission).
+  # The four Lambda functions themselves (aws_lambda_function, aws_lambda_permission).
   statement {
     sid = "LambdaFunctionManagement"
     actions = [
@@ -161,6 +161,9 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 }
 
 data "aws_iam_policy_document" "github_actions_assume_role" {
+  # Repositories created after 15 July 2026 include immutable owner and
+  # repository IDs in the OIDC subject claim. Name-only subjects are not
+  # accepted because this repository always emits the immutable format.
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
@@ -178,7 +181,9 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:environment:${var.github_environment}"]
+      values = [
+        "repo:${split("/", var.github_repository)[0]}@${var.github_repository_owner_id}/${split("/", var.github_repository)[1]}@${var.github_repository_id}:environment:${var.github_environment}"
+      ]
     }
   }
 }

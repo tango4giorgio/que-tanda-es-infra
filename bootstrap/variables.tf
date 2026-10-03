@@ -22,6 +22,28 @@ variable "github_repository" {
   description = "GitHub owner/repository allowed to assume the deployment role."
 }
 
+variable "github_repository_owner_id" {
+  type        = string
+  default     = "328818540"
+  description = "Immutable GitHub owner ID used in OIDC subject claims for repositories created after 15 July 2026."
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_owner_id))
+    error_message = "github_repository_owner_id must contain only digits."
+  }
+}
+
+variable "github_repository_id" {
+  type        = string
+  default     = "1370526941"
+  description = "Immutable GitHub repository ID used in OIDC subject claims for repositories created after 15 July 2026."
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id must contain only digits."
+  }
+}
+
 variable "github_environment" {
   type        = string
   default     = "production"

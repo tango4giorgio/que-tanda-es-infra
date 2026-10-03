@@ -32,17 +32,17 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check out backend release
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: tango4giorgio/que-tanda-es-backend
           ref: ${{ inputs.backend_release_tag }}
           path: backend-release
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.7.4
 
@@ -63,11 +63,16 @@ jobs:
           [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           role-session-name: github-actions-terraform
+          mask-aws-account-id: true
+          retry-max-attempts: 3
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
 
       - name: Initialise Terraform
         env:

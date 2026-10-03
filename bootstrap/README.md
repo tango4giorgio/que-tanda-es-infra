@@ -9,7 +9,8 @@ part of the main `backend-infra` configuration one directory up. It creates:
 - a dedicated Supabase project and Postgres database to hold the main configuration's
   Terraform state.
 
-The GitHub role can be assumed only by the configured repository's `production` environment.
+The GitHub role can be assumed only by the configured repository's `production` environment,
+using the repository's immutable GitHub owner and repository IDs in the OIDC subject claim.
 The main configuration stores its own state directly in a Postgres database inside the project
 created here (Terraform's `pg` backend), rather than as a file.
 
@@ -49,9 +50,17 @@ terraform init
 terraform apply
 ```
 
-Override `github_repository` or `github_environment` only when the workflow location or
-protected environment name differs from the defaults. Override `tfstate_project_name` or
-`supabase_region` only if you want the Terraform-state project named or located differently.
+Override `github_repository`, `github_repository_owner_id`, `github_repository_id`, or
+`github_environment` only when the workflow location, immutable GitHub IDs, or protected
+environment name differs from the defaults. You can obtain the IDs from the GitHub API:
+
+```sh
+gh api repos/OWNER/REPOSITORY \
+  --jq '{owner_id: .owner.id, repository_id: .id}'
+```
+
+Override `tfstate_project_name` or `supabase_region` only if you want the Terraform-state
+project named or located differently.
 
 Retrieve the generated credentials (the secret is marked `sensitive`, so it never appears in
 the normal `apply` output):
@@ -85,10 +94,12 @@ Configure the bootstrap outputs as variables on the GitHub `production` environm
 
 ```sh
 terraform output github_actions_role_arn
+terraform output github_actions_oidc_subject
 ```
 
 Use this value for `AWS_ROLE_ARN`. Use `terraform output -raw tfstate_database_url` for
-`SUPABASE_TFSTATE_DATABASE_URL` — no further manual steps are needed to make it usable.
+`SUPABASE_TFSTATE_DATABASE_URL`. The OIDC subject output is the exact value trusted by AWS and
+is useful when diagnosing `sts:AssumeRoleWithWebIdentity` failures.
 
 From now on, run every command in the main `backend-infra/README.md` (its `terraform
 init`/`plan`/`apply`) with `AWS_PROFILE=tango-deployer` set, instead of whatever broader
@@ -98,7 +109,7 @@ credentials you used for this bootstrap step.
 
 The attached policy (see `main.tf`) only allows:
 
-- Managing IAM roles/policies named `tango-music-game-*` (the Lambda execution roles), and
+- Managing IAM roles/policies named `tango-music-game-*` (the four Lambda execution roles), and
   passing those roles only to `lambda.amazonaws.com`.
 - Creating/updating/deleting Lambda functions named `tango-music-game-*`.
 - Managing CloudWatch log groups under `/aws/lambda/tango-music-game-*` (the log-group
