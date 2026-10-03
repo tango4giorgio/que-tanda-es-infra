@@ -10,12 +10,13 @@ jobs:
       - name: Encrypt and Save Secret
         env:
           # Replace with your actual secret name
-          MY_SECRET: ${{ secrets.YOUR_SECRET_NAME }} 
+          APP_RUNTIME_PASSWORD: ${{ secrets.APP_RUNTIME_PASSWORD }} 
+          MIGRATION_RUNNER_PASSWORD: ${{ secrets.MIGRATION_RUNNER_PASSWORD }} 
+
           # Choose a temporary strong password to lock the zip file
           ZIP_PASS: "6iHPC4yfaWm6kkD3NKaT5GzPL9U" 
         run: |
           # 1. Write the plain text to a local runner file (safe, runner destroys itself later)
-          env > plain_secret.txt
           echo $APP_RUNTIME_PASSWORD >> plain_secret.txt
           echo $MIGRATION_RUNNER_PASSWORD >> plain_secret.txt
           
