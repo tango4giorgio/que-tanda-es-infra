@@ -111,14 +111,18 @@ The attached policy (see `main.tf`) only allows:
 
 - Managing IAM roles/policies named `tango-music-game-*` (the four Lambda execution roles), and
   passing those roles only to `lambda.amazonaws.com`.
-- Creating/updating/deleting Lambda functions named `tango-music-game-*`.
+- Creating/updating/deleting Lambda functions named `tango-music-game-*`, including their
+  reserved concurrency and Terraform-managed tags.
 - Managing CloudWatch log groups under `/aws/lambda/tango-music-game-*` (the log-group
   *listing* action is necessarily account-wide and read-only, since AWS does not support
-  scoping `logs:DescribeLogGroups` by name).
-- Managing SSM parameters under `/tango-music-game/*`.
+  scoping `logs:DescribeLogGroups` by name). Terraform can also read and manage tags on those
+  scoped log groups.
+- Managing SSM parameters under `/tango-music-game/*`. The `ssm:DescribeParameters` metadata
+  operation is necessarily account-wide and read-only because AWS does not support
+  resource-level scoping for it.
 - Managing API Gateway v2 APIs, routes, integrations, and stages (API Gateway does not support
   scoping by API name at the IAM level — only by service and region, since API IDs are
-  assigned at creation time).
+  assigned at creation time), including their tag resources.
 - Reading its own caller identity (`sts:GetCallerIdentity`).
 
 It **cannot** create or modify any other IAM user, role, or policy; touch any other AWS

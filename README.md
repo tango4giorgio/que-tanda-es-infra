@@ -289,6 +289,9 @@ Repositories created after 15 July 2026 use immutable GitHub owner and repositor
 OIDC subject. If AWS reports `Not authorized to perform sts:AssumeRoleWithWebIdentity`, apply
 the current bootstrap configuration and verify that `terraform output
 github_actions_oidc_subject` matches the repository and `production` environment.
+After changes to AWS resource types or Terraform provider behaviour, apply the bootstrap root
+before rerunning this workflow so its deployer policy includes the required read, tag, and
+resource-management APIs.
 Applied migrations are recorded in `public.schema_migration`; changing an already-applied
 migration causes a checksum failure. The workflow never receives the Supabase management token
 or database superuser password.

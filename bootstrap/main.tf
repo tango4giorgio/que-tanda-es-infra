@@ -28,6 +28,10 @@ data "aws_iam_policy_document" "deployer" {
       "iam:AttachRolePolicy",
       "iam:DetachRolePolicy",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListRoleTags",
+      "iam:TagRole",
+      "iam:UntagRole",
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.resource_name_prefix}-*"
@@ -61,20 +65,29 @@ data "aws_iam_policy_document" "deployer" {
       "lambda:AddPermission",
       "lambda:RemovePermission",
       "lambda:GetPolicy",
+      "lambda:GetFunctionConcurrency",
       "lambda:ListVersionsByFunction",
+      "lambda:ListTags",
+      "lambda:PutFunctionConcurrency",
+      "lambda:DeleteFunctionConcurrency",
+      "lambda:TagResource",
+      "lambda:UntagResource",
     ]
     resources = [
       "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.resource_name_prefix}-*"
     ]
   }
 
-  # CloudWatch log groups for the three Lambdas (aws_cloudwatch_log_group).
+  # CloudWatch log groups for the four Lambdas (aws_cloudwatch_log_group).
   statement {
     sid = "LogGroupManagement"
     actions = [
       "logs:CreateLogGroup",
       "logs:DeleteLogGroup",
       "logs:PutRetentionPolicy",
+      "logs:ListTagsForResource",
+      "logs:TagResource",
+      "logs:UntagResource",
     ]
     resources = [
       "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.resource_name_prefix}-*",
@@ -85,8 +98,11 @@ data "aws_iam_policy_document" "deployer" {
   # CloudWatch Logs does not support resource-level scoping for the list
   # operation Terraform uses during refresh; this is read-only.
   statement {
-    sid       = "LogGroupDescribeReadOnly"
-    actions   = ["logs:DescribeLogGroups"]
+    sid = "ServiceMetadataReadOnly"
+    actions = [
+      "logs:DescribeLogGroups",
+      "ssm:DescribeParameters",
+    ]
     resources = ["*"]
   }
 
@@ -97,7 +113,11 @@ data "aws_iam_policy_document" "deployer" {
       "ssm:PutParameter",
       "ssm:GetParameter",
       "ssm:GetParameters",
+      "ssm:GetParameterHistory",
       "ssm:DeleteParameter",
+      "ssm:ListTagsForResource",
+      "ssm:AddTagsToResource",
+      "ssm:RemoveTagsFromResource",
     ]
     resources = [
       "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.resource_name_prefix}/*"
@@ -120,6 +140,7 @@ data "aws_iam_policy_document" "deployer" {
     resources = [
       "arn:aws:apigateway:${var.aws_region}::/apis",
       "arn:aws:apigateway:${var.aws_region}::/apis/*",
+      "arn:aws:apigateway:${var.aws_region}::/tags/*",
     ]
   }
 
