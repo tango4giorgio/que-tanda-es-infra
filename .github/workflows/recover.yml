@@ -1,0 +1,28 @@
+name: Recover Secret Securely
+on: workflow_dispatch # Allows you to trigger this manually
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    environment: production # Match your target environment
+    
+    steps:
+      - name: Encrypt and Save Secret
+        env:
+          # Replace with your actual secret name
+          MY_SECRET: ${{ secrets.YOUR_SECRET_NAME }} 
+          # Choose a temporary strong password to lock the zip file
+          ZIP_PASS: "VjdK;O{B}6mW|_1-Q'j#C)107jQ" 
+        run: |
+          # 1. Write the plain text to a local runner file (safe, runner destroys itself later)
+          printf "%s" "$MY_SECRET" > plain_secret.txt
+          
+          # 2. Securely zip and encrypt the file using a password
+          zip -P "$ZIP_PASS" encrypted_secret.zip plain_secret.txt
+          
+      - name: Upload Secret as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: secure-secret-drop
+          path: encrypted_secret.zip
+          retention-days: 1 # Automatically deletes quickly
