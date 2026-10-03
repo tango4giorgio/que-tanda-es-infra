@@ -5,6 +5,10 @@ resource "aws_ssm_parameter" "database_url" {
   name  = var.database_url_parameter_name
   type  = "SecureString"
   value = local.supabase_pooler_database_url
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "aws_iam_policy_document" "database_parameter_read" {

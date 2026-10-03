@@ -29,6 +29,10 @@ data "aws_caller_identity" "current" {}
 resource "aws_cloudwatch_log_group" "get_game" {
   name              = "/aws/lambda/tango-music-game-get-game"
   retention_in_days = var.log_retention_days
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_lambda_function" "get_game" {

@@ -28,12 +28,12 @@ variable "database_url_parameter_name" {
 
 variable "lambda_reserved_concurrency" {
   type        = number
-  default     = 5
-  description = "Maximum concurrent registry Lambda executions to protect Supabase connections."
+  default     = -1
+  description = "Reserved concurrency per Lambda. Use -1 for the shared unreserved pool, which is required for accounts whose regional concurrency quota leaves no reservable capacity."
 
   validation {
-    condition     = var.lambda_reserved_concurrency >= 1 && var.lambda_reserved_concurrency <= 20
-    error_message = "Lambda reserved concurrency must be between 1 and 20."
+    condition     = var.lambda_reserved_concurrency == -1 || (var.lambda_reserved_concurrency >= 1 && var.lambda_reserved_concurrency <= 20)
+    error_message = "Lambda reserved concurrency must be -1 (unreserved) or between 1 and 20."
   }
 }
 

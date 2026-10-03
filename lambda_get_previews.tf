@@ -24,6 +24,10 @@ resource "aws_iam_role_policy" "get_previews_secret" {
 resource "aws_cloudwatch_log_group" "get_previews" {
   name              = "/aws/lambda/tango-music-game-get-previews"
   retention_in_days = var.log_retention_days
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_lambda_function" "get_previews" {

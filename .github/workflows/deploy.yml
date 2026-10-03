@@ -7,6 +7,11 @@ on:
         description: Backend release tag whose Lambda packages will be deployed
         required: true
         type: string
+      allow_destructive_changes:
+        description: Allow Terraform to delete or replace managed resources
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -26,25 +31,22 @@ jobs:
       AWS_REGION: eu-west-2
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
-      TF_VAR_backend_release_tag: ${{ inputs.backend_release_tag }}
-      TF_VAR_app_runtime_password: ${{ secrets.APP_RUNTIME_PASSWORD }}
-      TF_VAR_supabase_project_ref: ${{ vars.SUPABASE_PROJECT_REF }}
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check out backend release
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: tango4giorgio/que-tanda-es-backend
           ref: ${{ inputs.backend_release_tag }}
           path: backend-release
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: 1.7.4
+          terraform_version: 1.16.5
 
       - name: Check required configuration
         shell: bash
@@ -63,7 +65,7 @@ jobs:
           [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -76,12 +78,8 @@ jobs:
 
       - name: Initialise Terraform
         env:
-          SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
-        run: |
-          cat > supabase.tfbackend <<EOF
-          conn_str = "$SUPABASE_TFSTATE_DATABASE_URL"
-          EOF
-          terraform init -backend-config=supabase.tfbackend
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+        run: terraform init
 
       - name: Check formatting
         run: terraform fmt -check -recursive
@@ -90,7 +88,43 @@ jobs:
         run: terraform validate
 
       - name: Create deployment plan
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          TF_VAR_backend_release_tag: ${{ inputs.backend_release_tag }}
+          TF_VAR_app_runtime_password: ${{ secrets.APP_RUNTIME_PASSWORD }}
+          TF_VAR_supabase_project_ref: ${{ vars.SUPABASE_PROJECT_REF }}
         run: terraform plan -out=tfplan
+
+      - name: Review deployment plan
+        shell: bash
+        env:
+          ALLOW_DESTRUCTIVE_CHANGES: ${{ inputs.allow_destructive_changes }}
+        run: |
+          set -euo pipefail
+          trap 'rm -f tfplan.json' EXIT
+          terraform show -json tfplan > tfplan.json
+
+          mapfile -t destructive_resources < <(
+            jq -r '
+              .resource_changes[]
+              | select(.change.actions | index("delete"))
+              | .address
+            ' tfplan.json
+          )
+
+          {
+            echo "## Terraform plan"
+            echo
+            echo "Resources with delete or replacement actions: ${#destructive_resources[@]}"
+            if ((${#destructive_resources[@]} > 0)); then
+              printf -- '- `%s`\n' "${destructive_resources[@]}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if ((${#destructive_resources[@]} > 0)) && [[ "$ALLOW_DESTRUCTIVE_CHANGES" != "true" ]]; then
+            echo "::error::Terraform plans to delete or replace managed resources. Review the job summary and rerun with allow_destructive_changes enabled only if every action is expected."
+            exit 1
+          fi
 
       - name: Apply database migrations
         shell: bash
@@ -105,4 +139,6 @@ jobs:
         run: backend-release/scripts/run_migrations.sh
 
       - name: Apply deployment plan
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
         run: terraform apply -auto-approve tfplan

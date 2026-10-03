@@ -11,7 +11,7 @@ generation, batched preview resolution, anonymous feedback, and the reverse-prox
 - AWS SSM Parameter Store `SecureString` for the transaction-pooler connection string (free
   Standard tier, no customer-managed KMS key)
 - Python 3.12 ARM64 Lambdas (game generation, preview resolution, anonymous feedback
-  submission, and the reverse-proxy gateway) with bounded reserved concurrency
+  submission, and the reverse-proxy gateway) with configurable concurrency
 - CloudWatch log groups with explicit retention (encrypted at rest by AWS-owned keys by
   default; no customer-managed KMS key, to avoid its flat $1/month/key charge)
 - API Gateway HTTP API, fronted by the reverse-proxy gateway Lambda, exposing `GET /game`,
@@ -25,7 +25,7 @@ organisation but does not create organisations.
 
 Install these tools locally before doing anything else:
 
-- **Terraform** `>= 1.6.0` — [install instructions](https://developer.hashicorp.com/terraform/install).
+- **Terraform** `1.16.x` — [install instructions](https://developer.hashicorp.com/terraform/install).
   Check with `terraform version`.
 - **AWS CLI v2** — [install instructions](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
   Not strictly required by Terraform itself, but the easiest way to configure AWS credentials
@@ -126,8 +126,11 @@ management token or database superuser password.
 database** workflow. Terraform uses it only to build the transaction-pooler URL stored in SSM
 for the Lambdas; it cannot run DDL.
 
-`lambda_reserved_concurrency` defaults to `5` and must remain within the
-validated range of 1–20 unless the Supabase connection budget is deliberately redesigned.
+`lambda_reserved_concurrency` defaults to `-1`, which uses the account's shared unreserved
+pool. This is required for new or quota-restricted AWS accounts that cannot reserve concurrency
+while retaining AWS's minimum unreserved capacity. Set a value from `1` to `20` only after
+confirming the regional Lambda concurrency quota can accommodate that reservation for all four
+functions.
 
 ## State security
 
@@ -159,21 +162,16 @@ not the transaction-mode pooler (port `6543`) used for the application's own run
 connections — advisory locks do not survive transaction-mode pooling, so using the wrong mode
 silently disables locking.
 
-Set the connection string in your shell, then initialise:
+Set the connection string in your shell, then initialise. Using the backend's environment
+variable avoids writing credentials to a temporary configuration file:
 
 ```sh
-export SUPABASE_TFSTATE_DATABASE_URL='<connection string from bootstrap output>'
-
-cat > supabase.tfbackend <<EOF
-conn_str = "$SUPABASE_TFSTATE_DATABASE_URL"
-EOF
-
-terraform init -backend-config=supabase.tfbackend
+export PG_CONN_STR='<connection string from bootstrap output>'
+terraform init
 ```
 
-The generated `supabase.tfbackend` file contains credentials and is ignored to prevent an
-accidental secret commit. The one-off application-database root uses the same connection with
-a separate `application_database_state` schema.
+The one-off application-database root uses the same connection with
+`PG_SCHEMA_NAME=application_database_state` so its state remains isolated.
 
 ## Lambda packages
 
@@ -269,9 +267,11 @@ side effects.
 
 The `Deploy infrastructure` workflow performs a manual production deployment using a backend
 release tag supplied when the workflow is started. Terraform first creates a saved plan,
-including fetching and validating the release assets. The workflow then applies that backend
-tag's outstanding SQL migrations and finally applies the saved Terraform plan. A plan,
-migration, or release-asset failure prevents AWS deployment.
+including fetching and validating the release assets. The workflow blocks plans containing
+delete or replacement actions unless `allow_destructive_changes` is explicitly enabled after
+reviewing the listed resources in the job summary. It then applies that backend tag's
+outstanding SQL migrations and finally applies the saved Terraform plan. A plan, migration, or
+release-asset failure prevents AWS deployment.
 
 Create a GitHub environment named `production`, add any required reviewers, and configure:
 
@@ -285,6 +285,9 @@ Create a GitHub environment named `production`, add any required reviewers, and 
 
 Run the bootstrap module once before the first deployment, then open **Actions**, choose
 **Deploy infrastructure**, select **Run workflow**, and enter a published backend release tag.
+Leave `allow_destructive_changes` disabled for normal deployments. A failed provider create can
+leave a resource tainted; enable it only when the plan summary shows expected replacements and
+no protected persistent resources.
 Repositories created after 15 July 2026 use immutable GitHub owner and repository IDs in their
 OIDC subject. If AWS reports `Not authorized to perform sts:AssumeRoleWithWebIdentity`, apply
 the current bootstrap configuration and verify that `terraform output
@@ -301,6 +304,6 @@ string uses encrypted transport with `sslmode=require`; move to `sslmode=verify-
 Supabase CA certificate is packaged and supplied consistently to local and Lambda runtimes.
 
 The plan must show reverse-proxy gateway routes for `GET /game`, `POST /previews`, and
-`POST /feedback`, a scoped secret-read policy per Lambda, bounded Lambda concurrency, the
-protected Supabase project, and the transaction-pooler connection output. No MusicBrainz
-refresh worker is deployed by Terraform.
+`POST /feedback`, a scoped secret-read policy per Lambda, account-compatible Lambda concurrency,
+the protected SSM database parameter and log groups, the protected Supabase project, and the
+transaction-pooler connection output. No MusicBrainz refresh worker is deployed by Terraform.

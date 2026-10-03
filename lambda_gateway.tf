@@ -40,6 +40,10 @@ resource "aws_iam_role_policy" "gateway_invoke_targets" {
 resource "aws_cloudwatch_log_group" "gateway" {
   name              = "/aws/lambda/tango-music-game-gateway"
   retention_in_days = var.log_retention_days
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_lambda_function" "gateway" {

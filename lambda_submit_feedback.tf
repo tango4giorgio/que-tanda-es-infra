@@ -30,6 +30,10 @@ resource "aws_iam_role_policy" "submit_feedback_secret" {
 resource "aws_cloudwatch_log_group" "submit_feedback" {
   name              = "/aws/lambda/tango-music-game-submit-feedback"
   retention_in_days = var.log_retention_days
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_lambda_function" "submit_feedback" {

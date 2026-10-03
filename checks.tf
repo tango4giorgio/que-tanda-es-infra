@@ -12,10 +12,17 @@ check "transaction_pooler_is_used" {
   }
 }
 
-check "lambda_concurrency_is_bounded" {
+check "lambda_concurrency_is_valid" {
   assert {
-    condition     = aws_lambda_function.get_game.reserved_concurrent_executions > 0
-    error_message = "Reserved concurrency must protect the Supabase connection limit."
+    condition = alltrue([
+      for concurrency in [
+        aws_lambda_function.gateway.reserved_concurrent_executions,
+        aws_lambda_function.get_game.reserved_concurrent_executions,
+        aws_lambda_function.get_previews.reserved_concurrent_executions,
+        aws_lambda_function.submit_feedback.reserved_concurrent_executions,
+      ] : concurrency == -1 || concurrency > 0
+    ])
+    error_message = "Lambda concurrency must use the shared unreserved pool or a positive reservation."
   }
 }
 

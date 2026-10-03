@@ -18,14 +18,10 @@ export TF_VAR_supabase_access_token='<Supabase personal access token>'
 export TF_VAR_supabase_database_password='<strong superuser password>'
 export TF_VAR_migration_runner_password='<strong migration password>'
 export TF_VAR_app_runtime_password='<strong runtime password>'
-export SUPABASE_TFSTATE_DATABASE_URL='<Terraform-state database URL>'
+export PG_CONN_STR='<Terraform-state database URL>'
+export PG_SCHEMA_NAME='application_database_state'
 
-cat > app-database.tfbackend <<EOF
-conn_str = "$SUPABASE_TFSTATE_DATABASE_URL"
-schema_name = "application_database_state"
-EOF
-
-terraform init -backend-config=app-database.tfbackend
+terraform init
 terraform fmt -check
 terraform validate
 terraform plan
