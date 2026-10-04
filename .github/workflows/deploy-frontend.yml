@@ -1,0 +1,129 @@
+name: Deploy frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      frontend_release_tag:
+        description: Frontend release tag to deploy to Vercel
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-frontend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy release to Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      FRONTEND_RELEASE_REPO: tango4giorgio/que-tanda-es
+
+    steps:
+      - name: Check out infrastructure repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.5
+          terraform_wrapper: false
+
+      - name: Check required configuration
+        shell: bash
+        env:
+          FRONTEND_RELEASE_TAG: ${{ inputs.frontend_release_tag }}
+          SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$FRONTEND_RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || {
+            echo "::error::frontend_release_tag must be a semantic version beginning with v."
+            exit 1
+          }
+          [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
+          [[ -n "$VERCEL_ORG_ID" ]] || { echo "::error::VERCEL_ORG_ID is not configured on the production environment."; exit 1; }
+          [[ -n "$VERCEL_PROJECT_ID" ]] || { echo "::error::VERCEL_PROJECT_ID is not configured on the production environment."; exit 1; }
+          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is not configured on the production environment."; exit 1; }
+
+      - name: Initialise Terraform state
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+        run: terraform init
+
+      - name: Resolve backend gateway from Terraform
+        id: terraform
+        shell: bash
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          api_base="$(terraform output -raw gateway_endpoint)"
+          [[ "$api_base" =~ ^https://[^/]+(/.*)?$ ]] || {
+            echo "::error::Terraform output gateway_endpoint is missing or is not an HTTPS URL."
+            exit 1
+          }
+          echo "frontend_api_base_url=${api_base%/}" >> "$GITHUB_OUTPUT"
+
+      - name: Download immutable frontend release
+        shell: bash
+        env:
+          FRONTEND_RELEASE_TAG: ${{ inputs.frontend_release_tag }}
+        run: |
+          set -euo pipefail
+          release_url="https://github.com/${FRONTEND_RELEASE_REPO}/releases/download/${FRONTEND_RELEASE_TAG}"
+          curl --fail --location --retry 3 --output frontend-dist.tar.gz "${release_url}/frontend-dist.tar.gz"
+          curl --fail --location --retry 3 --output frontend-dist.tar.gz.sha256 "${release_url}/frontend-dist.tar.gz.sha256"
+          sha256sum --check frontend-dist.tar.gz.sha256
+
+      - name: Prepare Vercel static output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p frontend-deployment/.vercel/output/static
+          tar -xzf frontend-dist.tar.gz -C frontend-deployment/.vercel/output/static
+          printf '{"version":3}\n' > frontend-deployment/.vercel/output/config.json
+
+      - name: Initialise frontend deployment state
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          PG_SCHEMA_NAME: frontend_deployment_state
+        run: terraform -chdir=frontend-deployment init
+
+      - name: Plan frontend deployment
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          PG_SCHEMA_NAME: frontend_deployment_state
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TF_VAR_frontend_release_tag: ${{ inputs.frontend_release_tag }}
+          TF_VAR_backend_gateway_url: ${{ steps.terraform.outputs.frontend_api_base_url }}
+          TF_VAR_vercel_team_id: ${{ vars.VERCEL_ORG_ID }}
+          TF_VAR_vercel_project_id: ${{ vars.VERCEL_PROJECT_ID }}
+        run: terraform -chdir=frontend-deployment plan -out=tfplan
+
+      - name: Apply frontend deployment
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          PG_SCHEMA_NAME: frontend_deployment_state
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: terraform -chdir=frontend-deployment apply -auto-approve tfplan
+
+      - name: Record deployment
+        shell: bash
+        env:
+          PG_CONN_STR: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
+          PG_SCHEMA_NAME: frontend_deployment_state
+        run: |
+          {
+            echo "## Frontend deployment"
+            echo
+            echo "- Release: \`${{ inputs.frontend_release_tag }}\`"
+            echo "- URL: $(terraform -chdir=frontend-deployment output -raw deployment_url)"
+          } >> "$GITHUB_STEP_SUMMARY"

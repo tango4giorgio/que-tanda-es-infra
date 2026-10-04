@@ -5,7 +5,12 @@
 *.tfvars.json
 *.log
 .terraform.lock.hcl
+!frontend-deployment/.terraform.lock.hcl
 .lambda-packages/
+.vercel/
+frontend-deployment/.vercel/
+frontend-dist.tar.gz
+frontend-dist.tar.gz.sha256
 *.tfbackend
 .DS_Store
 Thumbs.db

@@ -16,6 +16,7 @@ generation, batched preview resolution, anonymous feedback, and the reverse-prox
   default; no customer-managed KMS key, to avoid its flat $1/month/key charge)
 - API Gateway HTTP API, fronted by the reverse-proxy gateway Lambda, exposing `GET /game`,
   `POST /previews`, and `POST /feedback`
+- Vercel deployment workflow for immutable tagged frontend releases
 - Least-privilege Lambda IAM and invocation permissions
 
 The Supabase organisation must already exist. The provider creates projects inside an
@@ -226,6 +227,7 @@ Database creation, package publication, and production deployment are deliberate
 1. Create or import the Supabase application project and database roles once.
 2. Publish immutable backend packages without touching production.
 3. Deploy a selected backend release: migrate its schema first, then apply Terraform.
+4. Deploy a selected frontend release artifact to Vercel.
 
 ### 1. Create the application database once
 
@@ -307,3 +309,30 @@ The plan must show reverse-proxy gateway routes for `GET /game`, `POST /previews
 `POST /feedback`, a scoped secret-read policy per Lambda, account-compatible Lambda concurrency,
 the protected SSM database parameter and log groups, the protected Supabase project, and the
 transaction-pooler connection output. No MusicBrainz refresh worker is deployed by Terraform.
+
+### 4. Deploy a frontend release to Vercel
+
+The frontend repository publishes `frontend-dist.tar.gz` and its SHA-256 checksum whenever a
+`v*` tag is pushed. The **Deploy frontend** workflow downloads a selected immutable release,
+verifies its checksum, reads `gateway_endpoint` from the existing Terraform state, and invokes
+the isolated `frontend-deployment/` Terraform root. Terraform generates the Vercel Build Output
+API routing metadata and manages the production `vercel_deployment` resource. The SPA
+continues to call same-origin `/api`; Vercel rewrites those requests to the Terraform-managed
+backend gateway, so the release artifact is environment-independent and the backend URL is
+not duplicated in GitHub configuration.
+
+Configure these values on the existing GitHub `production` environment:
+
+| Type | Name | Value |
+| --- | --- | --- |
+| Environment variable | `VERCEL_ORG_ID` | Vercel team or account identifier |
+| Environment variable | `VERCEL_PROJECT_ID` | Vercel project identifier |
+| Environment secret | `SUPABASE_TFSTATE_DATABASE_URL` | Existing Terraform state database URL also used by backend deployment |
+| Environment secret | `VERCEL_TOKEN` | Vercel access token permitted to deploy the project |
+
+Open **Actions**, choose **Deploy frontend**, enter a published semantic version tag such as
+`v1.0.0`, and run the workflow. The deployment fails before contacting Vercel when the tag,
+checksum, Terraform gateway output, or required credentials are invalid. Deploy the backend
+infrastructure at least once before the frontend so `gateway_endpoint` exists in state.
+Frontend deployment state is stored in the same PostgreSQL backend under the isolated
+`frontend_deployment_state` schema.
