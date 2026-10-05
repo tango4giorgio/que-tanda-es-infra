@@ -328,6 +328,7 @@ Configure these values on the existing GitHub `production` environment:
 | Environment variable | `VERCEL_ORG_ID` | Vercel team or account identifier |
 | Environment variable | `VERCEL_PROJECT_ID` | Vercel project identifier |
 | Environment secret | `SUPABASE_TFSTATE_DATABASE_URL` | Existing Terraform state database URL also used by backend deployment |
+| Environment secret | `FRONTEND_RELEASE_TOKEN` | Fine-grained GitHub token with read-only Contents access to the private frontend repository |
 | Environment secret | `VERCEL_TOKEN` | Vercel access token permitted to deploy the project |
 
 Open **Actions**, choose **Deploy frontend**, enter a published semantic version tag such as
@@ -336,3 +337,8 @@ checksum, Terraform gateway output, or required credentials are invalid. Deploy 
 infrastructure at least once before the frontend so `gateway_endpoint` exists in state.
 Frontend deployment state is stored in the same PostgreSQL backend under the isolated
 `frontend_deployment_state` schema.
+
+Create `FRONTEND_RELEASE_TOKEN` as a fine-grained personal access token scoped only to
+`tango4giorgio/que-tanda-es`, with the repository `Contents` permission set to read-only. The
+workflow passes it to GitHub CLI only while downloading the selected release assets; do not
+store the token in repository variables or configuration files.

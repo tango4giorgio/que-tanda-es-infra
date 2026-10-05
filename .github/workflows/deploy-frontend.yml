@@ -38,6 +38,7 @@ jobs:
         shell: bash
         env:
           FRONTEND_RELEASE_TAG: ${{ inputs.frontend_release_tag }}
+          FRONTEND_RELEASE_TOKEN: ${{ secrets.FRONTEND_RELEASE_TOKEN }}
           SUPABASE_TFSTATE_DATABASE_URL: ${{ secrets.SUPABASE_TFSTATE_DATABASE_URL }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -48,6 +49,7 @@ jobs:
             echo "::error::frontend_release_tag must be a semantic version beginning with v."
             exit 1
           }
+          [[ -n "$FRONTEND_RELEASE_TOKEN" ]] || { echo "::error::FRONTEND_RELEASE_TOKEN is not configured on the production environment."; exit 1; }
           [[ -n "$SUPABASE_TFSTATE_DATABASE_URL" ]] || { echo "::error::SUPABASE_TFSTATE_DATABASE_URL is not configured on the production environment."; exit 1; }
           [[ -n "$VERCEL_ORG_ID" ]] || { echo "::error::VERCEL_ORG_ID is not configured on the production environment."; exit 1; }
           [[ -n "$VERCEL_PROJECT_ID" ]] || { echo "::error::VERCEL_PROJECT_ID is not configured on the production environment."; exit 1; }
@@ -76,11 +78,13 @@ jobs:
         shell: bash
         env:
           FRONTEND_RELEASE_TAG: ${{ inputs.frontend_release_tag }}
+          GH_TOKEN: ${{ secrets.FRONTEND_RELEASE_TOKEN }}
         run: |
           set -euo pipefail
-          release_url="https://github.com/${FRONTEND_RELEASE_REPO}/releases/download/${FRONTEND_RELEASE_TAG}"
-          curl --fail --location --retry 3 --output frontend-dist.tar.gz "${release_url}/frontend-dist.tar.gz"
-          curl --fail --location --retry 3 --output frontend-dist.tar.gz.sha256 "${release_url}/frontend-dist.tar.gz.sha256"
+          gh release download "$FRONTEND_RELEASE_TAG" \
+            --repo "$FRONTEND_RELEASE_REPO" \
+            --pattern frontend-dist.tar.gz \
+            --pattern frontend-dist.tar.gz.sha256
           sha256sum --check frontend-dist.tar.gz.sha256
 
       - name: Prepare Vercel static output
