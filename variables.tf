@@ -11,12 +11,12 @@ variable "backend_release_repo" {
 
 variable "backend_release_tag" {
   type        = string
-  description = "Git tag of the backend release to deploy. Must contain get_game.zip, get_previews.zip, gateway.zip, and submit_feedback.zip."
+  description = "Git tag of the backend release to deploy. Must contain get_game.zip, get_previews.zip, gateway.zip, submit_feedback.zip, and create_session.zip."
 }
 
 variable "gateway_target_function_names" {
   type        = list(string)
-  default     = ["tango-music-game-get-game", "tango-music-game-get-previews", "tango-music-game-submit-feedback"]
+  default     = ["tango-music-game-get-game", "tango-music-game-get-previews", "tango-music-game-submit-feedback", "tango-music-game-create-session"]
   description = "Target Lambda function names the gateway's IAM role is permitted to invoke; must stay in sync with backend/src/gateway_config/routes.json."
 }
 

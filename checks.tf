@@ -20,6 +20,7 @@ check "lambda_concurrency_is_valid" {
         aws_lambda_function.get_game.reserved_concurrent_executions,
         aws_lambda_function.get_previews.reserved_concurrent_executions,
         aws_lambda_function.submit_feedback.reserved_concurrent_executions,
+        aws_lambda_function.create_session.reserved_concurrent_executions,
       ] : concurrency == -1 || concurrency > 0
     ])
     error_message = "Lambda concurrency must use the shared unreserved pool or a positive reservation."

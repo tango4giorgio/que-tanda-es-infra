@@ -8,6 +8,7 @@ locals {
     get_previews    = "get_previews.zip"
     gateway         = "gateway.zip"
     submit_feedback = "submit_feedback.zip"
+    create_session  = "create_session.zip"
   }
 }
 

@@ -2,7 +2,7 @@ resource "aws_apigatewayv2_api" "game" {
   name          = "tango-music-game"
   protocol_type = "HTTP"
   cors_configuration {
-    allow_headers = ["content-type"]
+    allow_headers = ["content-type", "x-session-id"]
     allow_methods = ["GET", "POST"]
     allow_origins = ["*"]
     max_age       = 3600
@@ -64,7 +64,7 @@ resource "aws_apigatewayv2_api" "gateway" {
   name          = "tango-music-game-gateway"
   protocol_type = "HTTP"
   cors_configuration {
-    allow_headers = ["content-type"]
+    allow_headers = ["content-type", "x-session-id"]
     allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
     allow_origins = ["*"]
     max_age       = 3600
